@@ -79,21 +79,36 @@ interface WorkspaceState {
   setAssemblyItems(assemblyId: string, rows: AssemblyItem[]): void;
 }
 
+// All persistence writes run through a single FIFO queue so that rapid
+// sequences (add takeoff -> undo -> redo) hit the database in order.
+// Supabase query builders execute lazily on await, so queueing the builder
+// (or a thunk) defers the actual HTTP request until its turn.
+let writeQueue: Promise<unknown> = Promise.resolve();
+
 function track(
   set: (fn: (s: WorkspaceState) => Partial<WorkspaceState>) => void,
-  p: PromiseLike<{ error: unknown }>
+  job: PromiseLike<{ error: unknown }> | (() => PromiseLike<{ error: unknown }>)
 ) {
   set((s) => ({ pendingWrites: s.pendingWrites + 1, saveState: "saving" }));
-  Promise.resolve(p).then(({ error }) => {
-    if (error) console.error("save failed", error);
-    set((s) => {
-      const pending = s.pendingWrites - 1;
-      return {
-        pendingWrites: pending,
-        saveState: error ? "error" : pending > 0 ? "saving" : "saved",
-      };
-    });
-  });
+  const run = typeof job === "function" ? job : () => job;
+  writeQueue = writeQueue
+    .then(() => run())
+    .then(
+      ({ error }) => {
+        if (error) console.error("save failed", error);
+        set((s) => {
+          const pending = s.pendingWrites - 1;
+          return {
+            pendingWrites: pending,
+            saveState: error ? "error" : pending > 0 ? "saving" : "saved",
+          };
+        });
+      },
+      (error) => {
+        console.error("save failed", error);
+        set((s) => ({ pendingWrites: s.pendingWrites - 1, saveState: "error" }));
+      }
+    );
 }
 
 // Exposed on window for E2E tests and console debugging.
@@ -314,14 +329,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         assemblyItems: [...s.assemblyItems.filter((ai) => ai.assembly_id !== assemblyId), ...rows],
       }));
       const db = supabase();
-      track(
-        set,
-        db
-          .from("assembly_items")
-          .delete()
-          .eq("assembly_id", assemblyId)
-          .then(async () => (rows.length ? await db.from("assembly_items").insert(rows) : { error: null }))
-      );
+      track(set, async () => {
+        const del = await db.from("assembly_items").delete().eq("assembly_id", assemblyId);
+        if (del.error) return del;
+        return rows.length ? await db.from("assembly_items").insert(rows) : { error: null };
+      });
     },
   };
 });

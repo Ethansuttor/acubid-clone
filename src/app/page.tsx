@@ -32,7 +32,13 @@ export default function ProjectsPage() {
     if (!auth.user) return;
     const { data, error } = await supabase()
       .from("projects")
-      .insert({ name: name.trim(), user_id: auth.user.id })
+      .insert({
+        name: name.trim(),
+        user_id: auth.user.id,
+        labor_rate: 0,
+        overhead_pct: 0,
+        profit_pct: 0,
+      })
       .select()
       .single();
     if (!error && data) router.push(`/project/${data.id}`);

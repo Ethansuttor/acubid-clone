@@ -148,7 +148,8 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+    // re-attach when the container first mounts (no sheet -> sheet)
+  }, [sheet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- space = pan --------------------------------------------------------
   useEffect(() => {
@@ -267,15 +268,8 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
     const drag = dragRef.current;
     if (!drag) return;
     drag.moved = true;
-    if (drag.mode === "pan") {
-      setView((v) => ({
-        ...v,
-        panX: drag.startPan.x + (pdf[0] - drag.startPdf[0]) * v.zoom,
-        panY: drag.startPan.y + (pdf[1] - drag.startPdf[1]) * v.zoom,
-      }));
-      // recompute against moved pan: pan math uses startPdf measured in old pan space;
-      // simpler: track client deltas
-    } else if (drag.mode === "aibox") {
+    // pan is handled in onPointerMoveCapture from client-pixel deltas
+    if (drag.mode === "aibox") {
       setAiBox({
         x: Math.min(drag.startPdf[0], pdf[0]),
         y: Math.min(drag.startPdf[1], pdf[1]),
