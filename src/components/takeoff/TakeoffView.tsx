@@ -40,6 +40,7 @@ export default function TakeoffView() {
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.shiftKey) return; // Shift+A / Shift+R belong to the AI review queue
       if (k === "v") ws.setTool("select");
       else if (k === "c") ws.setTool("count");
       else if (k === "l") ws.setTool("linear");
