@@ -8,11 +8,12 @@ export, and AI-assisted symbol counting with a human review queue.
 
 ```sh
 npm install
-npm run dev        # http://localhost:3000
+cp .env.example .env.local   # then add your ANTHROPIC_API_KEY
+npm run dev                  # http://localhost:3000
 ```
 
-Configuration lives in `.env.local` (already pointed at the `volt-takeoff`
-Supabase project):
+Configuration lives in `.env.local` (`.env.example` is already pointed at
+the `volt-takeoff` Supabase project):
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
