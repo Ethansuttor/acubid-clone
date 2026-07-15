@@ -158,10 +158,10 @@ export function buildWorkbook(data: {
 
   // --- Summary ------------------------------------------------------------------
   const sum = wb.addWorksheet("Summary");
-  sum.columns = [
-    { header: "", key: "k", width: 34 },
-    { header: "", key: "v", width: 18 },
-  ];
+  // No sum.columns here: ExcelJS would emit an (empty) header row and shift
+  // every styled row down by one. Set widths directly and add array rows.
+  sum.getColumn(1).width = 34;
+  sum.getColumn(2).width = 18;
   const rows: [string, number | string][] = [
     [`Project: ${project.name}`, ""],
     ["", ""],
@@ -175,11 +175,11 @@ export function buildWorkbook(data: {
     [`Profit (${summary.profitPct}%)`, money(summary.profit)],
     ["BID PRICE ($)", money(summary.bidPrice)],
   ];
-  for (const [k, v] of rows) sum.addRow({ k, v });
+  for (const [k, v] of rows) sum.addRow([k, v]);
   sum.getRow(1).font = { bold: true, size: 14 };
   const bidRow = sum.getRow(rows.length);
   bidRow.font = { bold: true, size: 12, color: { argb: "FFB97E17" } };
-  sum.getColumn("v").numFmt = "#,##0.00";
+  sum.getColumn(2).numFmt = "#,##0.00";
 
   return { wb, summary };
 }
