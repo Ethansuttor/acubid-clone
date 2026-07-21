@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Voltline visual identity: "night drafting table".
+   Deep blue-black ground, blueprint gridlines, amber signal accent,
+   engineering-document typography. Built for long sessions on drawings.
+------------------------------------------------------------------- */
+
+@theme {
+  --color-ink-950: #0b0f14;
+  --color-ink-900: #10161d;
+  --color-ink-850: #141c25;
+  --color-ink-800: #1a232e;
+  --color-ink-700: #243140;
+  --color-ink-600: #33455a;
+  --color-line: #2a3846;
+  --color-paper: #e8e4d8;
+  --color-fg: #d7dde3;
+  --color-fg-dim: #8fa0b0;
+  --color-fg-faint: #5c6d7e;
+  --color-volt: #ffb224;
+  --color-volt-dim: #b97e17;
+  --color-ok: #4ade80;
+  --color-danger: #f87171;
+  --color-ai: #38bdf8;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+html, body {
+  height: 100%;
+  background: var(--color-ink-950);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 14px;
+}
+
+::selection { background: color-mix(in srgb, var(--color-volt) 40%, transparent); }
+
+/* Blueprint grid used on empty canvases and the app frame */
+.blueprint {
+  background-color: var(--color-ink-950);
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-ink-600) 18%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-ink-600) 18%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.panel {
+  background: var(--color-ink-900);
+  border: 1px solid var(--color-line);
+}
+
+.titlebar {
+  font-family: var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--color-fg-dim);
+}
+
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--color-line);
+  background: var(--color-ink-800);
+  color: var(--color-fg);
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.btn:hover { border-color: var(--color-volt-dim); color: var(--color-volt); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-volt {
+  background: var(--color-volt);
+  border-color: var(--color-volt);
+  color: #171004;
+  font-weight: 600;
+}
+.btn-volt:hover { background: #ffc14d; color: #171004; border-color: #ffc14d; }
+.btn-danger:hover { border-color: var(--color-danger); color: var(--color-danger); }
+
+.input {
+  background: var(--color-ink-950);
+  border: 1px solid var(--color-line);
+  color: var(--color-fg);
+  padding: 5px 8px;
+  font-size: 13px;
+  width: 100%;
+}
+.input:focus { outline: none; border-color: var(--color-volt-dim); }
+.input-num { font-family: var(--font-mono); text-align: right; }
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th {
+  text-align: left; font-family: var(--font-mono); font-size: 10.5px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-fg-faint);
+  padding: 6px 8px; border-bottom: 1px solid var(--color-line);
+  position: sticky; top: 0; background: var(--color-ink-900); z-index: 1;
+}
+.tbl td { padding: 5px 8px; border-bottom: 1px solid color-mix(in srgb, var(--color-line) 55%, transparent); }
+.tbl tr:hover td { background: color-mix(in srgb, var(--color-ink-700) 35%, transparent); }
+.tbl td.r, .tbl th.r { text-align: right; }
+
+.kbd {
+  font-family: var(--font-mono); font-size: 10px;
+  border: 1px solid var(--color-line); border-bottom-width: 2px;
+  padding: 1px 5px; color: var(--color-fg-dim); background: var(--color-ink-850);
+  border-radius: 3px;
+}
+
+.tab {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 8px 16px; cursor: pointer;
+  color: var(--color-fg-dim); border-bottom: 2px solid transparent;
+}
+.tab:hover { color: var(--color-fg); }
+.tab.active { color: var(--color-volt); border-bottom-color: var(--color-volt); }
+
+/* Takeoff canvas cursors */
+.cursor-count { cursor: crosshair; }
+.cursor-select { cursor: default; }
+
+/* Scrollbars that fit the theme */
+* { scrollbar-width: thin; scrollbar-color: var(--color-ink-700) transparent; }
