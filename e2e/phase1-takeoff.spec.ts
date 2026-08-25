@@ -60,7 +60,7 @@ test("phase 1: render, calibrate, takeoff tools, undo, persistence", async ({ pa
   await expect(page.getByText("20 FT")).toBeVisible();
 
   // Rise/drop allowance: +5 ft per run => 25 FT
-  await page.locator('input[type="number"]').fill("5");
+  await page.getByTestId("layer-risedrop").fill("5");
   await expect(page.getByText("25 FT")).toBeVisible();
 
   // Area layer: 200x200 units = 20ft x 20ft = 400 SF

@@ -21,6 +21,9 @@ const project: Project = {
   labor_rate: summaryInputs.laborRate,
   overhead_pct: summaryInputs.overheadPct,
   profit_pct: summaryInputs.profitPct,
+  waste_pct: summaryInputs.wastePct,
+  tax_pct: summaryInputs.taxPct,
+  labor_factor_pct: summaryInputs.laborFactorPct,
   created_at: "",
   updated_at: "",
 };
@@ -51,10 +54,12 @@ describe("excel export", () => {
     const rows = sheetValues("Takeoff");
     const rec = rows.find((r) => r[0] === "Receptacles")!;
     expect(rec[3]).toBe(8); // objects
-    expect(rec[4]).toBe(8); // qty
-    expect(rec[6]).toBe("[ASM] Duplex receptacle assembly");
+    expect(rec[4]).toBe(8); // measured
+    expect(rec[5]).toBe(1); // typical multiplier
+    expect(rec[6]).toBe(8); // extended quantity
+    expect(rec[8]).toBe("[ASM] Duplex receptacle assembly");
     const emt = rows.find((r) => r[0] === "Feeder EMT")!;
-    expect(emt[4]).toBe(60);
+    expect(emt[6]).toBe(60);
   });
 
   it("material sheet: W-12 rollup 264 FT @ .18 = 47.52 and total 566.16", () => {
@@ -75,6 +80,7 @@ describe("excel export", () => {
   it("summary sheet carries the bid math", () => {
     const rows = sheetValues("Summary");
     const find = (label: string) => rows.find((r) => String(r[0]).startsWith(label))?.[1];
+    expect(find("Material from takeoff")).toBe(566.16);
     expect(find("Material total")).toBe(566.16);
     expect(find("Labor cost")).toBe(1285.16);
     expect(find("Prime cost")).toBe(1851.32);

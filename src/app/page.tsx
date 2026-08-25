@@ -38,6 +38,9 @@ export default function ProjectsPage() {
         labor_rate: 0,
         overhead_pct: 0,
         profit_pct: 0,
+        waste_pct: 0,
+        tax_pct: 0,
+        labor_factor_pct: 0,
       })
       .select()
       .single();

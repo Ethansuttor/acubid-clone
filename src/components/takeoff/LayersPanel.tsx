@@ -36,6 +36,7 @@ export default function LayersPanel() {
       item_id: null,
       assembly_id: null,
       rise_drop_ft: 0,
+      typical_multiplier: 1,
       sort_order: ws.layers.length,
     };
     ws.addLayer(layer);
@@ -117,6 +118,11 @@ export default function LayersPanel() {
                 {layer.tool === "linear" && layer.rise_drop_ft > 0 && (
                   <span>+{layer.rise_drop_ft}′/run</span>
                 )}
+                {(layer.typical_multiplier ?? 1) !== 1 && (
+                  <span className="text-[var(--color-volt)]">
+                    ×{layer.typical_multiplier} typical
+                  </span>
+                )}
                 {needsCalibration && (
                   <span className="text-[var(--color-danger)]">needs calibration</span>
                 )}
@@ -172,10 +178,30 @@ function LayerEditor({ layer }: { layer: Layer }) {
         </optgroup>
       </select>
       <div className="flex items-center gap-2">
+        <label
+          className="flex items-center gap-1 text-[10.5px] text-[var(--color-fg-dim)]"
+          title="Take off one typical floor, apply it to this many identical ones"
+        >
+          typical ×
+          <input
+            data-testid="layer-typical"
+            className="input input-num !w-12 !px-1 !py-0.5 text-xs"
+            type="number"
+            min={1}
+            step={1}
+            value={layer.typical_multiplier ?? 1}
+            onChange={(e) =>
+              ws.updateLayer(layer.id, {
+                typical_multiplier: Math.max(0.0001, Number(e.target.value) || 1),
+              })
+            }
+          />
+        </label>
         {layer.tool === "linear" && (
           <label className="flex flex-1 items-center gap-1 text-[10.5px] text-[var(--color-fg-dim)]">
             rise/drop ft per run
             <input
+              data-testid="layer-risedrop"
               className="input input-num !w-16 !px-1 !py-0.5 text-xs"
               type="number"
               min={0}

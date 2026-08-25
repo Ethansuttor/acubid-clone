@@ -16,26 +16,32 @@ import { fmt, fmtQty } from "@/lib/units";
 export default function EstimateView() {
   const ws = useWorkspace();
   const quantities = layerQuantities(ws.layers, ws.takeoffs, ws.sheets);
-  const lines = extendEstimate(quantities, ws.items, ws.assemblies, ws.assemblyItems);
+  const { lines, issues } = extendEstimate(
+    quantities,
+    ws.items,
+    ws.assemblies,
+    ws.assemblyItems
+  );
   const rollup = materialRollup(lines);
   const totals = estimateTotals(lines);
-
-  const unlinked = quantities.filter((q) => q.quantity > 0 && !q.layer.item_id && !q.layer.assembly_id);
   const uncal = quantities.filter((q) => q.needsCalibration);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {(unlinked.length > 0 || uncal.length > 0) && (
-        <div className="border-b border-[var(--color-line)] bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] px-4 py-2 text-xs text-[var(--color-danger)]">
-          {unlinked.length > 0 && (
-            <div>
-              Not in estimate — layers without an item/assembly link:{" "}
-              {unlinked.map((q) => q.layer.name).join(", ")}
+      {(issues.length > 0 || uncal.length > 0) && (
+        <div className="border-b-2 border-[var(--color-danger)] bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] px-4 py-2 text-xs text-[var(--color-danger)]">
+          <div className="mb-1 font-mono text-[10.5px] uppercase tracking-widest">
+            Quantity missing from this bid
+          </div>
+          {issues.map((iss) => (
+            <div key={`${iss.layerId}-${iss.kind}`} data-testid="estimate-issue">
+              <span className="font-semibold">{iss.layerName}</span>{" "}
+              <span className="num">({fmtQty(iss.quantity)})</span> — {iss.detail}
             </div>
-          )}
+          ))}
           {uncal.length > 0 && (
             <div>
-              Missing quantities — takeoff on uncalibrated sheets:{" "}
+              Takeoff on uncalibrated sheets is not measured:{" "}
               {uncal.map((q) => q.layer.name).join(", ")}
             </div>
           )}
@@ -101,10 +107,10 @@ export default function EstimateView() {
           </div>
           <div className="flex justify-end gap-8 border-t border-[var(--color-line)] px-4 py-2 text-sm">
             <span>
-              Material <span className="num text-[var(--color-volt)]">${fmt(totals.materialTotal)}</span>
+              Material <span className="num text-[var(--color-volt)]">${fmt(totals.materialBase)}</span>
             </span>
             <span>
-              Labor <span className="num text-[var(--color-volt)]">{fmt(totals.laborHoursTotal)} hr</span>
+              Labor <span className="num text-[var(--color-volt)]">{fmt(totals.laborHoursBase)} hr</span>
             </span>
           </div>
         </div>

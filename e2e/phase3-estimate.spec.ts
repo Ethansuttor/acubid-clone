@@ -86,16 +86,15 @@ test("phase 3: estimate extension, live summary, excel export", async ({ page })
 
   // Summary: enter markups, check live bid
   await page.click("button.tab >> text=summary");
-  const inputs = page.locator("input.input-num");
-  await inputs.nth(0).fill("100");
-  await inputs.nth(1).fill("10");
-  await inputs.nth(2).fill("10");
+  await page.getByTestId("labor-rate").fill("100");
+  await page.getByTestId("overhead-pct").fill("10");
+  await page.getByTestId("profit-pct").fill("10");
   await expect(page.getByTestId("bid-price")).toHaveText("$126.81");
 
   // Live recalculation on profit change
-  await inputs.nth(2).fill("20");
+  await page.getByTestId("profit-pct").fill("20");
   await expect(page.getByTestId("bid-price")).toHaveText("$138.34");
-  await inputs.nth(2).fill("10");
+  await page.getByTestId("profit-pct").fill("10");
 
   // Excel export: capture the download and verify the Summary sheet
   const downloadPromise = page.waitForEvent("download");

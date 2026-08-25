@@ -1,5 +1,3 @@
-"use client";
-
 // Excel export: four sheets — Takeoff detail, Material, Labor, Summary.
 // All figures come from lib/estimate.ts (the single source of truth);
 // this module only formats.
@@ -16,7 +14,16 @@ import {
   type EstimateSummary,
 } from "./estimate";
 import { takeoffQuantity } from "./geometry";
-import type { Assembly, AssemblyItem, Item, Layer, Project, Sheet, Takeoff } from "./types";
+import type {
+  Assembly,
+  AssemblyItem,
+  DirectCost,
+  Item,
+  Layer,
+  Project,
+  Sheet,
+  Takeoff,
+} from "./types";
 
 const UNIT: Record<string, string> = { count: "EA", linear: "FT", area: "SF" };
 
@@ -42,17 +49,31 @@ export function buildWorkbook(data: {
   items: Item[];
   assemblies: Assembly[];
   assemblyItems: AssemblyItem[];
+  directCosts?: DirectCost[];
 }): { wb: ExcelJS.Workbook; summary: EstimateSummary } {
-  const { project, sheets, layers, takeoffs, items, assemblies, assemblyItems } = data;
+  const {
+    project,
+    sheets,
+    layers,
+    takeoffs,
+    items,
+    assemblies,
+    assemblyItems,
+    directCosts = [],
+  } = data;
   const quantities = layerQuantities(layers, takeoffs, sheets);
-  const lines = extendEstimate(quantities, items, assemblies, assemblyItems);
+  const { lines, issues } = extendEstimate(quantities, items, assemblies, assemblyItems);
   const rollup = materialRollup(lines);
   const totals = estimateTotals(lines);
   const summary = summarize({
     ...totals,
     laborRate: project.labor_rate,
+    wastePct: project.waste_pct ?? 0,
+    taxPct: project.tax_pct ?? 0,
+    laborFactorPct: project.labor_factor_pct ?? 0,
     overheadPct: project.overhead_pct,
     profitPct: project.profit_pct,
+    directCosts,
   });
 
   const wb = new ExcelJS.Workbook();
@@ -65,6 +86,8 @@ export function buildWorkbook(data: {
     { header: "Sheet", key: "sheet", width: 22 },
     { header: "Tool", key: "tool", width: 8 },
     { header: "Objects", key: "objects", width: 9 },
+    { header: "Measured", key: "measured", width: 12 },
+    { header: "Typical", key: "typical", width: 9 },
     { header: "Quantity", key: "qty", width: 12 },
     { header: "Unit", key: "unit", width: 6 },
     { header: "Linked to", key: "link", width: 34 },
@@ -74,6 +97,7 @@ export function buildWorkbook(data: {
   const itemById = new Map(items.map((i) => [i.id, i]));
   const asmById = new Map(assemblies.map((a) => [a.id, a]));
   for (const layer of layers) {
+    const multiplier = Number(layer.typical_multiplier) > 0 ? Number(layer.typical_multiplier) : 1;
     const bySheet = new Map<string, { objects: number; qty: number }>();
     for (const t of countableTakeoffs(takeoffs)) {
       if (t.layer_id !== layer.id) continue;
@@ -87,9 +111,9 @@ export function buildWorkbook(data: {
       bySheet.set(t.sheet_id, cur);
     }
     const link = layer.item_id
-      ? itemById.get(layer.item_id)?.description ?? ""
+      ? itemById.get(layer.item_id)?.description ?? "(item deleted)"
       : layer.assembly_id
-      ? `[ASM] ${asmById.get(layer.assembly_id)?.name ?? ""}`
+      ? `[ASM] ${asmById.get(layer.assembly_id)?.name ?? "(assembly deleted)"}`
       : "(unlinked)";
     for (const [sheetId, agg] of bySheet) {
       tk.addRow({
@@ -97,7 +121,9 @@ export function buildWorkbook(data: {
         sheet: sheetById.get(sheetId)?.name ?? "",
         tool: layer.tool,
         objects: agg.objects,
-        qty: money(agg.qty),
+        measured: money(agg.qty),
+        typical: multiplier,
+        qty: money(agg.qty * multiplier),
         unit: UNIT[layer.tool],
         link,
       });
@@ -125,7 +151,7 @@ export function buildWorkbook(data: {
       ext: money(r.materialCost),
     });
   }
-  const matTotal = mat.addRow({ desc: "MATERIAL TOTAL", ext: money(totals.materialTotal) });
+  const matTotal = mat.addRow({ desc: "MATERIAL TOTAL", ext: money(totals.materialBase) });
   matTotal.font = { bold: true };
   mat.getColumn("unitCost").numFmt = "#,##0.00";
   mat.getColumn("ext").numFmt = "#,##0.00";
@@ -151,32 +177,71 @@ export function buildWorkbook(data: {
       ext: money(r.laborHours),
     });
   }
-  const labTotal = lab.addRow({ desc: "LABOR HOURS TOTAL", ext: money(totals.laborHoursTotal) });
+  const labTotal = lab.addRow({ desc: "LABOR HOURS TOTAL", ext: money(totals.laborHoursBase) });
   labTotal.font = { bold: true };
   lab.getColumn("unitHr").numFmt = "#,##0.000";
   lab.getColumn("ext").numFmt = "#,##0.00";
 
   // --- Summary ------------------------------------------------------------------
-  const sum = wb.addWorksheet("Summary");
   // No sum.columns here: ExcelJS would emit an (empty) header row and shift
   // every styled row down by one. Set widths directly and add array rows.
-  sum.getColumn(1).width = 34;
+  const sum = wb.addWorksheet("Summary");
+  sum.getColumn(1).width = 40;
   sum.getColumn(2).width = 18;
-  const rows: [string, number | string][] = [
-    [`Project: ${project.name}`, ""],
-    ["", ""],
+  const rows: [string, number | string][] = [[`Project: ${project.name}`, ""], ["", ""]];
+
+  // An exported bid that is quietly missing quantity is worse than no export.
+  const issueRows: number[] = [];
+  if (issues.length > 0) {
+    rows.push(["!! QUANTITY MISSING FROM THIS BID", ""]);
+    for (const iss of issues) {
+      rows.push([`   ${iss.layerName} (${money(iss.quantity)}): ${iss.detail}`, ""]);
+      issueRows.push(rows.length);
+    }
+    rows.push(["", ""]);
+  }
+
+  rows.push(
+    ["Material from takeoff ($)", money(summary.materialBase)],
+    [`Waste (${summary.wastePct}%)`, money(summary.wasteAmount)],
+    [`Sales tax (${summary.taxPct}%)`, money(summary.salesTax)],
     ["Material total ($)", money(summary.materialTotal)],
-    ["Labor hours", money(summary.laborHoursTotal)],
-    [`Labor rate ($/hr)`, summary.laborRate],
-    ["Labor cost ($)", money(summary.laborCost)],
+    ["Labor hours from takeoff", money(summary.laborHoursBase)],
+    [`Labor factor (${summary.laborFactorPct}%)`, money(summary.laborFactorHours)],
+    ["Labor hours total", money(summary.laborHoursTotal)],
+    ["Labor rate ($/hr)", summary.laborRate],
+    ["Labor cost ($)", money(summary.laborCost)]
+  );
+
+  if (directCosts.length > 0) {
+    rows.push(["", ""], ["DIRECT JOB COSTS", ""]);
+    for (const dc of directCosts) {
+      rows.push([
+        `   ${dc.description || "(unnamed)"} [${dc.category}${dc.ohp_applies ? "" : ", at cost"}]`,
+        money(Number(dc.amount) || 0),
+      ]);
+    }
+    rows.push(["", ""]);
+  }
+
+  rows.push(
+    ["Direct costs with O&P ($)", money(summary.directCostsWithOhp)],
     ["Prime cost ($)", money(summary.primeCost)],
     [`Overhead (${summary.overheadPct}%)`, money(summary.overhead)],
     ["Subtotal ($)", money(summary.subtotal)],
     [`Profit (${summary.profitPct}%)`, money(summary.profit)],
-    ["BID PRICE ($)", money(summary.bidPrice)],
-  ];
+    ["Direct costs at cost ($)", money(summary.directCostsAtCost)],
+    ["BID PRICE ($)", money(summary.bidPrice)]
+  );
+
   for (const [k, v] of rows) sum.addRow([k, v]);
   sum.getRow(1).font = { bold: true, size: 14 };
+  for (const r of issueRows) {
+    sum.getRow(r).font = { bold: true, color: { argb: "FFC00000" } };
+  }
+  if (issues.length > 0) {
+    sum.getRow(3).font = { bold: true, size: 12, color: { argb: "FFC00000" } };
+  }
   const bidRow = sum.getRow(rows.length);
   bidRow.font = { bold: true, size: 12, color: { argb: "FFB97E17" } };
   sum.getColumn(2).numFmt = "#,##0.00";
