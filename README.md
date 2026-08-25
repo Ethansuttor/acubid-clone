@@ -18,11 +18,22 @@ the `volt-takeoff` Supabase project):
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-ANTHROPIC_API_KEY=sk-ant-...   # required only for AI auto-count
+ANTHROPIC_API_KEY=sk-ant-...   # required only for the AI features
 ```
 
-Sign in with your email. AI auto-count needs your own Anthropic API key on
-the server side; everything else works without it.
+Sign in with your email. AI auto-count and sheet analysis need your own
+Anthropic API key on the server side; everything else works without it.
+
+### Database migrations
+
+Both files in `supabase/migrations/` must be applied to the Supabase project
+before first use — run them in order in the SQL editor, or with the Supabase
+CLI. `0002_bid_math.sql` is **required**, not optional: the app writes
+`waste_pct` / `tax_pct` / `labor_factor_pct` on projects and
+`typical_multiplier` on layers, so creating a project against a database that
+only has `0001` will fail. (Reading direct costs is the one thing that
+degrades quietly, so an un-migrated database shows an empty cost list rather
+than erroring.)
 
 **Local mode** (`NEXT_PUBLIC_LOCAL_MODE=1 npm run dev`) replaces Supabase
 with a localStorage-backed store — used for offline dev and for the E2E
@@ -107,9 +118,7 @@ signs in. Production runs against real Supabase.
 - Nothing an AI produces reaches the bid unreviewed: auto-count detections
   land as pending markers, and sheet-analysis results land as proposals.
 - Supabase: schema + RLS in `supabase/migrations/`; plan PDFs live in the
-  private `plans` storage bucket namespaced by user id. Migration `0002`
-  adds the bid-math columns and the `direct_costs` table — the app degrades
-  gracefully against a database that predates it.
+  private `plans` storage bucket namespaced by user id.
 
 ## Tests
 
