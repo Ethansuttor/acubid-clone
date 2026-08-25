@@ -49,6 +49,9 @@ export default function AutoCount({
   useEffect(() => {
     if (!request || runningRef.current) return;
     if (!sheet || !layer || layer.tool !== "count") {
+      // Reacting to a one-shot event (a box was drawn), not synchronizing
+      // state, so the cascading-render concern behind this rule does not apply.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPhase({ kind: "error", message: "Select a COUNT layer first, then draw the box." });
       onDone();
       return;

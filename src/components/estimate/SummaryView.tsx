@@ -13,7 +13,7 @@ import {
 } from "@/lib/estimate";
 import { exportToExcel } from "@/lib/excel";
 import { fmt } from "@/lib/units";
-import type { DirectCost, DirectCostCategory } from "@/lib/types";
+import type { DirectCostCategory } from "@/lib/types";
 
 const CATEGORIES: DirectCostCategory[] = [
   "quote",

@@ -51,11 +51,9 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
 
   // ---- page loading ------------------------------------------------------
   useEffect(() => {
+    // State resets on sheet change come from the remount (TakeoffView keys
+    // this component by sheet id), so the effect only loads the page.
     let dead = false;
-    setPageSize(null);
-    setRenderError(null);
-    setDraft([]);
-    setAiBox(null);
     pageRef.current = null;
     if (!sheet || !doc) return;
     (async () => {
@@ -149,7 +147,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
     // re-attach when the container first mounts (no sheet -> sheet)
-  }, [sheet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sheet?.id]);
 
   // ---- space = pan --------------------------------------------------------
   useEffect(() => {

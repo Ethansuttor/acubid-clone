@@ -102,7 +102,10 @@ export default function TakeoffView() {
         </div>
 
         <div className="min-h-0 flex-1">
-          <SheetCanvas onAiBox={(rect) => setAiRequest(rect)} />
+          <SheetCanvas
+            key={ws.activeSheetId ?? "none"}
+            onAiBox={(rect) => setAiRequest(rect)}
+          />
         </div>
       </main>
 
