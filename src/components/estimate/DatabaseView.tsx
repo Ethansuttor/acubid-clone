@@ -3,18 +3,38 @@
 // User-editable item database and assembly builder. Items carry material
 // cost and labor hours per unit; assemblies expand into component items.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useWorkspace } from "@/store/workspace";
 import { fmt } from "@/lib/units";
+import {
+  assembliesToCsv,
+  itemsToCsv,
+  mergeAssemblies,
+  mergeItems,
+  parseAssembliesCsv,
+  parseItemsCsv,
+} from "@/lib/csv";
 import type { Assembly, AssemblyItem, Item } from "@/lib/types";
+
+function download(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 export default function DatabaseView() {
   const ws = useWorkspace();
   const [selAsm, setSelAsm] = useState<string | null>(null);
+  const [report, setReport] = useState<{ ok: string; errors: string[] } | null>(null);
   const assembly = ws.assemblies.find((a) => a.id === selAsm) ?? null;
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 flex-col">
+      <CsvBar report={report} setReport={setReport} />
+      <div className="flex min-h-0 flex-1">
       <div className="flex min-w-0 flex-[3] flex-col border-r border-[var(--color-line)]">
         <ItemsTable />
       </div>
@@ -22,6 +42,131 @@ export default function DatabaseView() {
         <AssembliesList selected={selAsm} onSelect={setSelAsm} />
         {assembly && <AssemblyEditor assembly={assembly} />}
       </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Bulk load of the estimator's own labor units. Import is additive and
+ * matches on code, so re-importing an updated price book keeps every layer
+ * link intact. Rows that cannot be read are listed, never dropped quietly.
+ */
+function CsvBar({
+  report,
+  setReport,
+}: {
+  report: { ok: string; errors: string[] } | null;
+  setReport: (r: { ok: string; errors: string[] } | null) => void;
+}) {
+  const ws = useWorkspace();
+  const itemFile = useRef<HTMLInputElement>(null);
+  const asmFile = useRef<HTMLInputElement>(null);
+
+  async function importItems(file: File) {
+    const { rows, errors } = parseItemsCsv(await file.text());
+    if (rows.length === 0) {
+      setReport({ ok: "Nothing imported", errors });
+      return;
+    }
+    const { upserts, added, updated } = mergeItems(ws.items, rows, ws.userId!);
+    for (const item of upserts) ws.upsertItem(item);
+    setReport({ ok: `${added} item(s) added, ${updated} updated`, errors });
+  }
+
+  async function importAssemblies(file: File) {
+    const { rows, errors } = parseAssembliesCsv(await file.text());
+    if (rows.length === 0) {
+      setReport({ ok: "Nothing imported", errors });
+      return;
+    }
+    const merged = mergeAssemblies(ws.assemblies, rows, ws.items, ws.userId!);
+    for (const a of merged.assemblies) ws.upsertAssembly(a);
+    for (const a of merged.assemblies) {
+      ws.setAssemblyItems(
+        a.id,
+        merged.components.filter((c) => c.assembly_id === a.id)
+      );
+    }
+    setReport({
+      ok: `${merged.added} assembly(s) added, ${merged.updated} updated`,
+      errors: [...errors, ...merged.errors],
+    });
+  }
+
+  return (
+    <div className="panel border-x-0 border-t-0">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
+        <span className="titlebar mr-1">Bulk edit</span>
+        <button
+          className="btn !py-1 text-xs"
+          onClick={() => download("voltline-items.csv", itemsToCsv(ws.items))}
+        >
+          ↓ Items CSV
+        </button>
+        <button className="btn !py-1 text-xs" onClick={() => itemFile.current?.click()}>
+          ↑ Import items
+        </button>
+        <div className="mx-1 h-4 w-px bg-[var(--color-line)]" />
+        <button
+          className="btn !py-1 text-xs"
+          onClick={() =>
+            download(
+              "voltline-assemblies.csv",
+              assembliesToCsv(ws.assemblies, ws.assemblyItems, ws.items)
+            )
+          }
+        >
+          ↓ Assemblies CSV
+        </button>
+        <button className="btn !py-1 text-xs" onClick={() => asmFile.current?.click()}>
+          ↑ Import assemblies
+        </button>
+        <span className="ml-2 text-[10.5px] text-[var(--color-fg-faint)]">
+          Items: code, description, unit, material_cost, labor_hours · matched on code
+        </span>
+        {report && (
+          <button className="btn ml-auto !py-1 text-xs" onClick={() => setReport(null)}>
+            Dismiss
+          </button>
+        )}
+      </div>
+      <input
+        ref={itemFile}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        data-testid="import-items"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) importItems(f);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={asmFile}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        data-testid="import-assemblies"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) importAssemblies(f);
+          e.target.value = "";
+        }}
+      />
+      {report && (
+        <div className="border-t border-[var(--color-line)] px-3 py-2 text-xs">
+          <div data-testid="import-ok" className="text-[var(--color-ok)]">
+            {report.ok}
+          </div>
+          {report.errors.map((err, i) => (
+            <div key={i} data-testid="import-error" className="text-[var(--color-danger)]">
+              {err}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
