@@ -48,14 +48,47 @@ signs in. Production runs against real Supabase.
    PENDING markers. They count for nothing until you accept them:
    `←`/`→` navigate, `Y` accept, `N` reject, `Shift+A` accept all,
    `Shift+R` reject all. Review actions are undoable.
-4. **Database tab** — your item database (description, unit, material $,
+4. **AI sheet analysis** — press *✨ Read* in the Sheets panel and Claude
+   reads each title block, proposing a sheet name and a calibration derived
+   from the printed drawing scale (`1/4" = 1'-0"` → 4 ft per inch of paper →
+   4/72 ft per PDF unit). Proposals are applied only when you confirm, and
+   applying one is undoable. The derivation assumes the PDF was plotted at
+   true size, so spot-check one known dimension before taking off.
+5. **Typical areas** — set a layer's *typical ×* to apply one floor's takeoff
+   to N identical floors. The multiplier shows on the layer and in the export.
+6. **Database tab** — your item database (description, unit, material $,
    labor hours per unit) and assemblies that expand into component items.
-5. **Estimate tab** — every layer extended into item lines (assemblies
-   expanded), plus a per-item material/labor rollup. Warnings call out
-   unlinked layers and uncalibrated sheets.
-6. **Summary tab** — labor rate, overhead %, profit % recalculate the bid
-   live: `labor cost → prime cost → overhead → subtotal → profit → bid`.
-   *Export to Excel* writes Takeoff / Material / Labor / Summary sheets.
+   *Bulk edit* exports either table to CSV and re-imports it, matching on
+   `code` so re-importing an updated price book keeps every layer link. Rows
+   that can't be read are reported by line number rather than skipped.
+7. **Estimate tab** — every layer extended into item lines (assemblies
+   expanded), plus a per-item material/labor rollup. A red banner lists any
+   layer carrying quantity that cannot be priced — a deleted item, an empty
+   assembly, or an assembly short a deleted component — so quantity is never
+   silently missing from a bid.
+8. **Summary tab** — the full bid, recalculating live:
+
+   ```
+   material from takeoff
+     + waste %              (loss allowance)
+     + sales tax %          (on material after waste)
+     = material total
+   labor hours from takeoff
+     ± labor factor %       (job conditions)
+     × labor rate           = labor cost
+   + direct job costs marked "marked up"
+     = prime cost
+     + overhead %  = subtotal
+     + profit %
+   + direct job costs marked "at cost"
+     = BID PRICE
+   ```
+
+   **Direct job costs** cover everything not from takeoff — gear quotes,
+   lighting packages, subcontractors, permits, equipment rental, bonds —
+   each flagged whether overhead and profit apply or it is carried at cost.
+   *Export to Excel* writes Takeoff / Material / Labor / Summary sheets, and
+   an incomplete bid is flagged in red at the top of the Summary sheet.
 
 ## Architecture notes
 
@@ -65,16 +98,27 @@ signs in. Production runs against real Supabase.
   `src/lib/estimate.ts` are the single source of truth for all quantities,
   dollars, and hours — pure functions, unit-tested against a
   hand-calculated fixture (`tests/fixtures/fixture-project.ts`).
-- The AI counting stack is its own module (`src/lib/autocount/`) behind a
-  `SymbolDetector` interface: tiling and cross-tile dedup are pure and
-  tested; the Claude prompt/model choice is isolated in `claude.ts`
-  (default `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`).
-- Supabase: schema + RLS in `supabase/migrations/0001_schema.sql`; plan
-  PDFs live in the private `plans` storage bucket namespaced by user id.
+- Both AI features are separate modules behind narrow interfaces so the
+  model or prompting can be swapped without touching the UI:
+  `src/lib/autocount/` (`SymbolDetector` — tiling and cross-tile dedup are
+  pure and tested) and `src/lib/sheetai/` (`SheetAnalyzer` — drawing-scale
+  parsing is pure and tested). Each has its Claude prompt isolated in
+  `claude.ts` (default `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`).
+- Nothing an AI produces reaches the bid unreviewed: auto-count detections
+  land as pending markers, and sheet-analysis results land as proposals.
+- Supabase: schema + RLS in `supabase/migrations/`; plan PDFs live in the
+  private `plans` storage bucket namespaced by user id. Migration `0002`
+  adds the bid-math columns and the `direct_costs` table — the app degrades
+  gracefully against a database that predates it.
 
 ## Tests
 
 ```sh
-npm test              # vitest: geometry, units, estimate math, excel, autocount
-npx playwright test   # E2E: all four phases against a local-mode dev server
+npm test              # vitest: geometry, units, estimate math, bid math,
+                      #         CSV, drawing scales, excel, autocount
+npx playwright test   # E2E: every feature above, against a local-mode dev server
 ```
+
+The estimating math is anchored to a hand-calculated fixture project in
+`tests/fixtures/fixture-project.ts` — every dollar and hour in it was worked
+out by hand and is asserted line by line.
