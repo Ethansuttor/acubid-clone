@@ -110,6 +110,28 @@ export interface Layer {
   rise_drop_ft: number;
   /** Repeat factor: take off one typical floor, apply it to N identical ones. */
   typical_multiplier: number;
+  /** Bid breakdown dimensions. Empty values mean unassigned. */
+  area?: string;
+  system?: string;
+  phase?: string;
+  sort_order: number;
+}
+
+export type ProposalEntryKind = "inclusion" | "exclusion" | "allowance" | "alternate";
+
+/**
+ * Commercial scope shown beside the base bid. Amounts are deliberately
+ * reference-only until the estimator chooses the accounting treatment; this
+ * prevents an allowance or alternate from silently being counted twice.
+ */
+export interface ProposalEntry {
+  id: string;
+  project_id: string;
+  user_id: string;
+  kind: ProposalEntryKind;
+  description: string;
+  amount: number;
+  pricing_note: string;
   sort_order: number;
 }
 
@@ -128,4 +150,64 @@ export interface Takeoff {
   source: TakeoffSource;
   status: TakeoffStatus;
   ai_confidence: number | null;
+}
+
+/** A frozen, reproducible copy of every input that produced an issued bid. */
+export interface BidSnapshot {
+  id: string;
+  project_id: string;
+  user_id: string;
+  revision: number;
+  label: string;
+  created_at: string;
+  bid_price: number;
+  material_total: number;
+  labor_hours_total: number;
+  labor_cost: number;
+  warning_count: number;
+  payload: BidSnapshotPayload;
+}
+
+interface BidSnapshotPayloadBase {
+  project: Project;
+  documents: PlanDocument[];
+  sheets: Sheet[];
+  layers: Layer[];
+  takeoffs: Takeoff[];
+  items: Item[];
+  assemblies: Assembly[];
+  assembly_items: AssemblyItem[];
+  direct_costs: DirectCost[];
+  summary: BidSnapshotSummary;
+  preflight: BidSnapshotCheck[];
+}
+
+export interface BidSnapshotPayloadV1 extends BidSnapshotPayloadBase {
+  schema_version: 1;
+}
+
+export interface BidSnapshotPayloadV2 extends BidSnapshotPayloadBase {
+  schema_version: 2;
+  proposal_entries: ProposalEntry[];
+}
+
+export type BidSnapshotPayload = BidSnapshotPayloadV1 | BidSnapshotPayloadV2;
+
+export interface BidSnapshotSummary {
+  material_base: number;
+  material_total: number;
+  labor_hours_base: number;
+  labor_hours_total: number;
+  labor_cost: number;
+  prime_cost: number;
+  overhead: number;
+  profit: number;
+  bid_price: number;
+}
+
+export interface BidSnapshotCheck {
+  id: string;
+  severity: "blocker" | "warning";
+  title: string;
+  detail: string;
 }

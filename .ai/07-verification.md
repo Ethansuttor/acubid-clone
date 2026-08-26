@@ -4,15 +4,22 @@ Run these before claiming anything works. Report what actually happened,
 including failures and their output.
 
 ```sh
-npm test                # 149 unit tests, 8 files  (~1s)
-npx tsc --noEmit        # typecheck
-npm run lint            # eslint flat config
-npx playwright test     # 7 E2E specs             (~30s)
-npx next build          # production build
+npm test                # 324 unit tests, 15 files   (~1s)
+npm run typecheck       # TypeScript (0 errors)
+npm run lint            # eslint flat config (0 errors, 0 warnings)
+npm run bench           # large-scale estimate benchmark (~5s)
+npm run test:e2e        # 10 E2E specs               (~25s)
+npm run build           # production build
 ```
 
-The E2E config starts its own dev server on port 3100 in local mode and uses
-the pre-installed Chromium at `/opt/pw-browsers/chromium`.
+The E2E config starts or reuses a dev server on port 3000 in local mode. It
+prefers `PLAYWRIGHT_CHROMIUM_PATH`, Chrome, or Edge when present, then falls
+back to Playwright's managed Chromium.
+
+Last complete verification: **August 26, 2026**. All commands above passed.
+The default benchmark's 10,000-takeoff full pipeline measured **14.03 ms
+median** and **15.56 ms p95** on an i7-12700H. Treat those numbers as one
+machine's observation, not a CI performance contract.
 
 ## The fixture project — the ground truth
 
@@ -45,6 +52,27 @@ Expected:
 With waste 5%, tax 8.25%, labor factor +15%, a $12,000 quote (O&P applies)
 and an $850 permit (at cost): **bid $18,247.62099152**.
 
+## Performance Benchmark & Fixture
+
+`tests/fixtures/large-estimate-fixture.ts` defines a deterministic seeded PRNG
+large commercial project:
+- 5 plan documents, 50 calibrated sheets
+- 1,000 database items, 200 assemblies (1,200 component links)
+- 200 layers, 10,000 takeoff objects (polylines, areas, counts)
+- 50 direct vendor & subcontractor costs
+
+Run `npm run bench` to benchmark:
+- `layerQuantities` throughput & latency
+- `extendEstimate` assembly expansion
+- `summarize & rollup` commercial calculations
+- `bidPreflight` readiness evaluation
+- Full end-to-end estimating pipeline latency
+
+The generated fixture intentionally contains pending AI detections and
+unlinked quantified layers. Its preflight result is therefore blocked by the
+known `pending-ai` and `missing-quantity` checks. The benchmark's integrity
+test expects exactly those blockers and fails on unexpected drift.
+
 ## Rules for changing the math
 
 1. **Do the arithmetic by hand first**, then write the assertion, then run it.
@@ -58,17 +86,22 @@ and an $850 permit (at cost): **bid $18,247.62099152**.
 
 ## Writing E2E tests
 
-`e2e/helpers.ts` gives you `signIn`, `clickPdf` (viewer coords → screen), and
-`waitSaved`. `window.__ws` is the store; `window.__voltview` is the canvas
-transform.
+`e2e/helpers.ts` provides reusable test utilities:
+- `signIn(page, userIndex)`
+- `clickPdf(page, vx, vy)`
+- `waitSaved(page)`
+- `expectPreflightReady(page)`
+- `expectPreflightBlocker(page, checkId)`
+- `createBidSnapshot(page, label)`
+- `expectRevision(page, revision, priceFormatted, label)`
 
-- Prefer `data-testid` over positional selectors. Two specs broke when panels
-  gained inputs and indices shifted.
+Key principles:
+- Prefer `data-testid` over positional selectors.
 - The AI specs mock `/api/autocount` and `/api/sheetinfo` with `page.route`,
   because there is no API key in the dev environment.
 - Sheet-analysis and auto-count both require a **count** layer to be the
   active layer; clicking a layer row makes it active.
-- Numeric cells render formatted (`1,250.00`), so match the formatted string.
+- Numeric cells render formatted (`$1,250.00`), so match the formatted string.
 
 ## What is NOT verified
 

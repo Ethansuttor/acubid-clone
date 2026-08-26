@@ -85,7 +85,9 @@ A project row predating the bid-math columns yielded `undefined/100 = NaN`;
 the UI rendered `$NaN` while the export used `?? 0` and showed a plausible
 figure — the two disagreed.
 
-**Fix:** `summarize()` coerces every non-finite input to 0.
+**Fix:** `summarize()` coerces every non-finite input to 0 for stable rendering,
+and bid preflight independently inspects raw commercial/layer/catalog inputs so
+that sanitization cannot make an invalid bid look ready to issue.
 
 ## 9. Viewer bugs (money: none, usability)
 
@@ -99,13 +101,39 @@ Setting `sum.columns` with empty headers made ExcelJS emit a blank header
 row, shifting every styled row down — the gold BID PRICE style landed on the
 Profit row. Values were always correct.
 
+## 11. Corrupt local tables loaded as plausible empty data (money: critical)
+
+`localdb.loadTable()` caught JSON parse failures and returned `[]`. A damaged
+items, layer, or takeoff table could therefore look like a valid low/empty
+estimate instead of a load failure.
+
+**Fix:** table parsing now throws on invalid JSON or non-array JSON. The query
+adapter returns the error and the workspace's atomic loader fails closed.
+
+## 12. Project deletion left bid data and plan bytes behind (privacy/storage)
+
+The local cascade omitted `direct_costs`, `bid_snapshots`, and uploaded PDF
+bytes, so deleting a project did not delete the whole local project.
+
+**Fix:** project/document cascades remove those rows and the corresponding
+local plan blob. Unit coverage asserts every project-owned table is empty.
+
+## 13. Failed plan metadata could leave an orphaned upload (storage)
+
+Plan bytes were uploaded before document and sheet rows were inserted. If a
+later insert failed, the PDF or partial document remained in localStorage.
+
+**Fix:** local storage implements `remove()`. A failed document insert removes
+the upload; a failed sheet insert deletes the document, which cascades any
+partial sheet rows and the PDF bytes.
+
 ---
 
 ## Security fixes
 
-- The local-mode auth bypass in both API routes is now also gated on
-  `NODE_ENV !== "production"`, so a stray env var cannot disable auth in a
-  deployment.
+- The temporary local bearer token in both API routes is accepted only when
+  `NODE_ENV !== "production"`; production fails closed until real server
+  authentication exists.
 - Both routes cap request bodies (48 MB) instead of accepting unbounded
   base64 image payloads.
 - Next 15 → 16 cleared three high-severity CVEs.

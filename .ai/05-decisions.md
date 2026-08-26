@@ -32,12 +32,13 @@ So they are carried through at face value. The E2E asserts the invariant by
 toggling one item and checking the bid moves by exactly
 `amount × (1+OH) × (1+profit) − amount`.
 
-**Local mode (`NEXT_PUBLIC_LOCAL_MODE=1`).**
-The dev sandbox blocks egress to `supabase.co` by network policy, so E2E
-could not run against the real database. Rather than mock at the component
-level (which would test nothing), the swap happens at the Supabase-client
-boundary, so E2E exercises the real components, store, and math. Gated on
-`NODE_ENV` so it cannot weaken production.
+**The active client is intentionally local-only.**
+`LOCAL_ONLY = true` and the client factory always returns the localStorage
+adapter. The hardcoded username `1` with an empty password is a temporary
+single-user development choice, not real authentication. The Supabase-shaped
+boundary remains so a future backend can replace the adapter without rewriting
+the estimator. Separately, AI API routes accept the local bearer token only
+when `NODE_ENV !== "production"`; production AI needs real server auth.
 
 **`SheetCanvas` is keyed by sheet id in `TakeoffView`.**
 Per-sheet state used to be reset inside the page-loading effect, which React
@@ -45,9 +46,9 @@ Compiler flags and which is easy to get subtly wrong. A remount is the
 idiomatic reset and deleted the reset code.
 
 **One FIFO write queue in the store.**
-Supabase builders are lazy thenables, so queueing defers the HTTP call. A
-fast add→undo could otherwise have the delete land before the insert and
-resurrect the row on reload.
+The adapter's query builders are lazy thenables, so queueing defers the
+operation. A fast add→undo could otherwise have the delete land before the
+insert and resurrect the row on reload.
 
 **Drawing-scale parsing is deliberately strict.**
 It auto-calibrates sheets, so a misread mis-measures every run. It requires

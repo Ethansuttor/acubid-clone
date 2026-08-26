@@ -1,23 +1,19 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createLocalClient } from "./localdb";
+import { LOCAL_ONLY } from "./local-config";
 
-export const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === "1";
+export const LOCAL_MODE = LOCAL_ONLY;
 
-// Single browser client; auth session persists in localStorage.
-// In local mode (offline dev / sandboxed testing) a localStorage-backed
-// stand-in replaces the network client; app code is identical either way.
+// Single local browser client; auth and application data persist in
+// localStorage. Keep the Supabase-shaped interface so the estimator does not
+// need a broad data-layer rewrite when the production backend returns.
 let client: SupabaseClient | null = null;
 
 export function supabase(): SupabaseClient {
   if (!client) {
-    client = LOCAL_MODE
-      ? (createLocalClient() as unknown as SupabaseClient)
-      : createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        );
+    client = createLocalClient() as unknown as SupabaseClient;
   }
   return client;
 }

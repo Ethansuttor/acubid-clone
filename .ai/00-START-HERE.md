@@ -19,29 +19,54 @@ that produces a quantity or a dollar.
 
 ## Current state (keep this accurate)
 
-- **Branch:** `claude/electrical-estimating-takeoff-mbpfi3`, tracked by PR #1
-  on `Ethansuttor/acubid-clone`.
-- **Tests:** 149 unit tests across 8 files, 7 Playwright E2E specs. All pass.
-  Build and lint are clean.
-- **Database:** Supabase project `volt-takeoff` (`ulswnsdyxfrwvznyraqy`),
-  `ACTIVE_HEALTHY`, both migrations applied and verified.
+- **Branch:** `main` in `Ethansuttor/acubid-clone`.
+- **Verified August 26, 2026:** 324 unit tests across 15 files and 10
+  Playwright E2E specs pass. Production build, typecheck, lint, and the
+  large-estimate benchmark are clean. See [`07-verification.md`](07-verification.md)
+  for the commands and measured benchmark result.
+- **Client & Persistence Architecture:** Local-first browser architecture with
+  `LOCAL_ONLY = true` configured in `src/lib/local-config.ts` and backed by
+  a localStorage client (`src/lib/localdb.ts`). Cloud Supabase is disconnected
+  from the active client workflow while maintaining schema-shaped API parity.
+- **Fail-Closed Loading:** Atomic workspace load (`load(projectId)` in `src/store/workspace.ts`)
+  evaluates all 10 entity queries (`projects`, `documents`, `sheets`, `layers`,
+  `takeoffs`, `items`, `assemblies`, `assembly_items`, `direct_costs`,
+  `bid_snapshots`). If any query fails, the store fails closed with a descriptive
+  `loadError` and zeroes collections rather than presenting a partial estimate.
+- **Bid Preflight Gate:** Pure `bidPreflight()` engine (`src/lib/preflight.ts`)
+  checks persistence health, missing quantities, pending AI hits, labor rates,
+  raw commercial/layer/catalog inputs, calculated totals, direct costs, empty
+  bids, sheet presence, zero-value items, typical multipliers, and markups.
+- **Catalog Diagnostics:** Pure `diagnoseCatalog()` engine (`src/lib/catalogDiagnostics.ts`)
+  detects zero-cost items, zero-labor items, duplicate item/assembly codes,
+  empty assemblies, and missing component references. The Database view exposes
+  the report without modifying catalog data or bid math.
+- **Local Bid Snapshots:** `createBidSnapshot()` deep-copies project state,
+  estimate inputs, checks, and totals to a new local `bid_snapshots` record only
+  when preflight is ready. The product never edits an existing snapshot. Revisions
+  use the current browser project's maximum revision plus one; there is no
+  cross-device or multi-user revision guarantee yet.
 - **Working:** PDF takeoff (count/linear/area), per-sheet calibration,
-  item + assembly database with CSV round-trip, full bid math, Excel export,
-  AI symbol auto-count with a review queue, AI title-block reading.
+  item + assembly database with CSV round-trip, full commercial bid math, Excel export,
+  bid preflight readiness checks, catalog diagnostics, immutable revision snapshots,
+  AI symbol auto-count with a review queue, and AI title-block reading.
 - **Not yet verified against reality:** both AI features have only ever run
   against mocked responses. There is no `ANTHROPIC_API_KEY` in the dev
   environment and no real plan set has been used. Detection accuracy and
   title-block reading on actual drawings are **unknown**.
 
-## The five files that matter most
+## The core files that matter most
 
 | File | Why |
 |---|---|
 | `src/lib/estimate.ts` | Every quantity, dollar and hour in the app. Pure. |
 | `src/lib/geometry.ts` | Takeoff geometry → real-world measurements. Pure. |
-| `src/store/workspace.ts` | All app state, autosave, undo/redo. |
+| `src/lib/preflight.ts` | Pure commercial bid-readiness preflight gate. |
+| `src/lib/catalogDiagnostics.ts` | Pure item and assembly catalog health diagnostics. |
+| `src/store/workspace.ts` | All app state, fail-closed loading, autosave queue, undo/redo, bid snapshots. |
 | `src/components/takeoff/SheetCanvas.tsx` | The drawing surface. Largest component. |
-| `tests/fixtures/fixture-project.ts` | Hand-calculated ground truth for the math. |
+| `tests/fixtures/fixture-project.ts` | Hand-calculated ground truth for estimating math. |
+| `tests/fixtures/large-estimate-fixture.ts` | Seeded PRNG large-scale estimate performance fixture. |
 
 ## Before you write code
 

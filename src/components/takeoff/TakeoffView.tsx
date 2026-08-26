@@ -4,19 +4,30 @@
 // tool switching, unlimited undo/redo, and the AI auto-count entry point.
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  CircleDot,
+  MousePointer2,
+  Pentagon,
+  Redo2,
+  Route,
+  ScanLine,
+  Sparkles,
+  Undo2,
+  type LucideIcon,
+} from "lucide-react";
 import { useWorkspace, type EditorTool } from "@/store/workspace";
 import SheetCanvas, { type AiBoxRect } from "./SheetCanvas";
 import SheetsPanel from "./SheetsPanel";
 import LayersPanel from "./LayersPanel";
 import AutoCount from "./AutoCount";
 
-const TOOLS: { id: EditorTool; label: string; key: string }[] = [
-  { id: "select", label: "Select", key: "V" },
-  { id: "count", label: "Count", key: "C" },
-  { id: "linear", label: "Linear", key: "L" },
-  { id: "area", label: "Area", key: "A" },
-  { id: "calibrate", label: "Scale", key: "K" },
-  { id: "aibox", label: "AI Count", key: "B" },
+const TOOLS: { id: EditorTool; label: string; key: string; icon: LucideIcon }[] = [
+  { id: "select", label: "Select", key: "V", icon: MousePointer2 },
+  { id: "count", label: "Count", key: "C", icon: CircleDot },
+  { id: "linear", label: "Linear", key: "L", icon: Route },
+  { id: "area", label: "Area", key: "A", icon: Pentagon },
+  { id: "calibrate", label: "Scale", key: "K", icon: ScanLine },
+  { id: "aibox", label: "AI Count", key: "B", icon: Sparkles },
 ];
 
 export default function TakeoffView() {
@@ -66,39 +77,32 @@ export default function TakeoffView() {
       </aside>
 
       <main className="relative flex min-w-0 flex-1 flex-col">
-        <div className="panel flex items-center gap-1 border-x-0 border-t-0 px-2 py-1.5">
-          {TOOLS.map((t) => (
+        <div className="tool-strip">
+          {TOOLS.map((t) => {
+            const Icon = t.icon;
+            return (
             <button
               key={t.id}
-              className={`btn !py-1 text-xs ${
-                ws.tool === t.id
-                  ? "!border-[var(--color-volt)] !bg-[var(--color-ink-700)] !text-[var(--color-volt)]"
-                  : ""
-              } ${t.id === "aibox" ? "!text-[var(--color-ai)]" : ""}`}
+              className={`btn tool-button !py-1 text-xs ${ws.tool === t.id ? "active" : ""} ${
+                t.id === "aibox" ? "ai" : ""
+              }`}
               onClick={() => ws.setTool(t.id)}
               title={`${t.label} (${t.key})`}
+              aria-label={`${t.label} tool (${t.key})`}
+              aria-pressed={ws.tool === t.id}
             >
+              <Icon size={15} />
               {t.label} <span className="kbd">{t.key}</span>
             </button>
-          ))}
-          <div className="mx-2 h-5 w-px bg-[var(--color-line)]" />
+            );
+          })}
+          <div className="tool-divider" />
           <button className="btn !py-1 text-xs" onClick={ws.undo} disabled={ws.undoStack.length === 0} title="Undo (Ctrl+Z)">
-            ⟲ Undo
+            <Undo2 size={15} /> Undo
           </button>
           <button className="btn !py-1 text-xs" onClick={ws.redo} disabled={ws.redoStack.length === 0} title="Redo (Ctrl+Shift+Z)">
-            ⟳ Redo
+            <Redo2 size={15} /> Redo
           </button>
-          <span
-            className={`ml-auto font-mono text-[10.5px] uppercase tracking-widest ${
-              ws.saveState === "error"
-                ? "text-[var(--color-danger)]"
-                : ws.saveState === "saving"
-                ? "text-[var(--color-volt)]"
-                : "text-[var(--color-fg-faint)]"
-            }`}
-          >
-            {ws.saveState === "error" ? "save failed" : ws.saveState === "saving" ? "saving…" : "saved"}
-          </span>
         </div>
 
         <div className="min-h-0 flex-1">

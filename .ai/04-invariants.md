@@ -48,11 +48,13 @@ Measurements are derived at read time from the sheet's calibration.
 Recalibrating a sheet re-derives everything correctly. Never persist a
 computed length.
 
-## 4. All arithmetic lives in pure modules
+## 4. All arithmetic and diagnostics live in pure modules
 
-`src/lib/geometry.ts` and `src/lib/estimate.ts` are the single source of
-truth. Components render; they do not calculate. If you find yourself doing
-arithmetic in a `.tsx` file, it belongs in `lib` with a test.
+`src/lib/geometry.ts`, `src/lib/estimate.ts`, `src/lib/preflight.ts`, and
+`src/lib/catalogDiagnostics.ts` are the single source of truth. They have
+zero React and zero I/O dependencies. Components render and collect input;
+they do not calculate. If you find yourself doing arithmetic in a `.tsx` file,
+it belongs in `lib` with a test.
 
 ## 5. Rounding is for display only
 
@@ -81,13 +83,46 @@ of bug this project can have.
 SDK is imported only by `lib/*/claude.ts`, which are imported only by routes.
 No client component may import them.
 
-## 8. Local mode is development-only
+## 8. Local-first architecture and persistence contract parity
 
-`NEXT_PUBLIC_LOCAL_MODE=1` swaps Supabase for a localStorage stand-in. The
-API routes honour its auth bypass **only** when `NODE_ENV !== "production"`,
-so setting the variable on a deployment cannot switch authentication off.
+The active application operates in local-first mode (`LOCAL_ONLY = true` in
+`src/lib/local-config.ts`), backed by localStorage client storage (`src/lib/localdb.ts`).
+All database calls go through the Supabase-shaped query builder contract,
+ensuring strict interface parity for future multi-tenant cloud sync without
+changing UI or store logic.
 
-## 9. Report outcomes faithfully
+## 9. Fail-closed workspace loading across all 10 entities
+
+`load(projectId)` in `src/store/workspace.ts` evaluates 10 parallel queries:
+`projects`, `documents`, `sheets`, `layers`, `takeoffs`, `items`, `assemblies`,
+`assembly_items`, `direct_costs`, and `bid_snapshots`.
+- If any single query returns an error or if the project record is missing,
+  the workspace **fails closed**.
+- It zeroes all entity collections and sets `loadError`.
+- It **never** falls back to partial arrays or renders an incomplete project,
+  preventing deflated low-dollar estimates from ever being viewed or exported.
+
+## 10. Durable save error tracking
+
+The workspace store serializes all mutations through a single FIFO write queue
+(`writeQueue`).
+- When an async write fails, `failedWrites` increments and `saveError` records
+  the verbatim failure message.
+- `saveState` transitions to `"error"`.
+- **Invariant:** `saveState` cannot silently revert to `"saved"` if `failedWrites > 0`.
+  Edits are not masked as healthy when data loss has occurred.
+
+## 11. Bid preflight gates immutable revision snapshots
+
+Creating a frozen bid snapshot (`createBidSnapshot()`) requires running
+`bidPreflight()`. If any blocker is active (such as an unresolved save error,
+missing quantity, pending AI review, invalid raw input, zero labor rate, or an
+invalid bid total), the snapshot is rejected. When clean, it inserts a deep
+copy under the next revision number in the current local project. The product
+does not update old snapshots. This local guarantee is not a substitute for a
+database uniqueness constraint or multi-user transaction.
+
+## 12. Report outcomes faithfully
 
 If tests fail, say so with output. If something is unverified, say it is
 unverified. Both AI features have only ever run against mocked responses —

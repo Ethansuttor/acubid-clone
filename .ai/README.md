@@ -18,6 +18,12 @@ were already made and paid for.
 | [`07-verification.md`](07-verification.md) | You're about to claim something works. |
 | [`08-environment.md`](08-environment.md) | Something won't run, connect, or authenticate. |
 | [`09-roadmap.md`](09-roadmap.md) | You're deciding what to build next. |
+| [`10-audit-and-competitive-roadmap.md`](10-audit-and-competitive-roadmap.md) | You need the failure-risk audit, Accubid comparison, or owner action list. |
+| [`11-gemini-flash-task-queue.md`](11-gemini-flash-task-queue.md) | You want bounded, copy-pasteable tasks for a fast coding model. |
+| [`12-spectrum-job-cost-plan.md`](12-spectrum-job-cost-plan.md) | You're planning post-award work: job cost, budgets, change orders, billing, WIP, or an ERP handoff. |
+| [`13-windows-desktop-plan.md`](13-windows-desktop-plan.md) | You're planning the Windows desktop (Electron) version of the app. |
+| [`14-durability-and-sync-plan.md`](14-durability-and-sync-plan.md) | You're planning the never-lose-data journal, vault folder, or cloud sync. |
+| [`15-proposed-skills.md`](15-proposed-skills.md) | You're deciding which new coding skills to approve and write. |
 
 ## The one-paragraph version
 

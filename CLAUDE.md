@@ -32,12 +32,13 @@ Concretely, and non-negotiably:
 - Before changing money or quantity: `.ai/04-invariants.md` and
   `.ai/06-bug-history.md`. Skills: `estimating-math`, `ai-feature`.
 - Before saying it works: `.ai/07-verification.md`. Skill: `voltline-verify`.
-  Run `npm test`, `npx tsc --noEmit`, `npm run lint`, `npx playwright test`.
+  Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run test:e2e`,
+  `npm run bench`, and `npm run build`.
 - Do the arithmetic by hand *before* writing the test. Twice a test
   expectation was wrong and the app was right.
 - Keep `.ai/` current: a new decision goes in `05`, a fixed bug in `06`. If a
   file there contradicts the code, the code is right — fix the file in the
   same commit.
 
-Environment quirks (blocked Supabase egress, local mode, the pre-installed
-Chromium) are in `.ai/08-environment.md`.
+The local-only client, temporary login, optional AI configuration, and browser
+tooling notes are in `.ai/08-environment.md`.

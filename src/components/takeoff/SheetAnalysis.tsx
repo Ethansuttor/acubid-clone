@@ -105,10 +105,15 @@ export default function SheetAnalysis() {
       </button>
 
       {(busy || error || proposals) && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-6">
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center bg-black/60 p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sheet-analysis-title"
+        >
           <div className="panel max-h-full w-[720px] overflow-auto">
             <div className="titlebar flex items-center justify-between border-b border-[var(--color-line)] px-4 py-3 !text-[var(--color-ai)]">
-              <span>AI sheet analysis</span>
+              <span id="sheet-analysis-title" className="font-semibold">AI sheet analysis</span>
               <button
                 className="btn !px-2 !py-0.5 text-xs"
                 onClick={() => {
@@ -121,8 +126,16 @@ export default function SheetAnalysis() {
               </button>
             </div>
 
-            {busy && <div className="px-4 py-6 text-sm text-[var(--color-fg-dim)]">{busy}</div>}
-            {error && <div className="px-4 py-6 text-sm text-[var(--color-danger)]">{error}</div>}
+            {busy && (
+              <div className="px-4 py-6 text-sm text-[var(--color-fg-dim)]" role="status" aria-live="polite">
+                {busy}
+              </div>
+            )}
+            {error && (
+              <div className="px-4 py-6 text-sm text-[var(--color-danger)]" role="alert">
+                {error}
+              </div>
+            )}
 
             {proposals && !busy && (
               <>

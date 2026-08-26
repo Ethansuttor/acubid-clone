@@ -199,25 +199,33 @@ export default function AutoCount({
       <div className="titlebar flex items-center justify-between px-3 py-2 !text-[var(--color-ai)]">
         <span>AI auto-count</span>
         {(phase.kind === "done" || phase.kind === "error") && pending.length === 0 && (
-          <button className="btn !px-2 !py-0.5 text-xs" onClick={() => setPhase({ kind: "idle" })}>
+          <button
+            className="btn !px-2 !py-0.5 text-xs"
+            aria-label="Dismiss AutoCount review"
+            onClick={() => setPhase({ kind: "idle" })}
+          >
             ✕
           </button>
         )}
       </div>
 
       {phase.kind === "capturing" && (
-        <div className="px-3 pb-3 text-xs text-[var(--color-fg-dim)]">Rendering sheet tiles…</div>
+        <div className="px-3 pb-3 text-xs text-[var(--color-fg-dim)]" role="status" aria-live="polite">
+          Rendering sheet tiles…
+        </div>
       )}
       {phase.kind === "detecting" && (
-        <div className="px-3 pb-3 text-xs text-[var(--color-fg-dim)]">
+        <div className="px-3 pb-3 text-xs text-[var(--color-fg-dim)]" role="status" aria-live="polite">
           Scanning {phase.tiles} tile(s) with Claude vision…
         </div>
       )}
       {phase.kind === "error" && (
-        <div className="px-3 pb-3 text-xs text-[var(--color-danger)]">{phase.message}</div>
+        <div className="px-3 pb-3 text-xs text-[var(--color-danger)]" role="alert">
+          {phase.message}
+        </div>
       )}
       {phase.kind === "done" && pending.length === 0 && (
-        <div className="px-3 pb-3 text-xs text-[var(--color-fg-dim)]">
+        <div className="px-3 pb-3 text-xs text-[var(--color-fg-dim)]" role="status" aria-live="polite">
           {phase.found} candidate(s) found · review complete
         </div>
       )}
@@ -251,6 +259,7 @@ export default function AutoCount({
             <button
               className="btn !py-1 text-xs"
               title="Previous (←)"
+              aria-label="Previous detection (←)"
               onClick={() => focusIndex(Math.max(Math.min(cursor, pending.length - 1) - 1, 0))}
             >
               ←
@@ -258,6 +267,7 @@ export default function AutoCount({
             <button
               className="btn !py-1 text-xs"
               title="Next (→)"
+              aria-label="Next detection (→)"
               onClick={() => focusIndex(Math.min(Math.min(cursor, pending.length - 1) + 1, pending.length - 1))}
             >
               →
