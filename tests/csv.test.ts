@@ -17,25 +17,25 @@ import { items, assemblies, assemblyItems } from "./fixtures/fixture-project";
 describe("parseCsv", () => {
   it("handles quotes, embedded commas, escaped quotes and CRLF", () => {
     const text = 'a,b,c\r\n1,"x, y","he said ""hi"""\r\n';
-    expect(parseCsv(text)).toEqual([
+    expect(parseCsv(text).rows).toEqual([
       ["a", "b", "c"],
       ["1", "x, y", 'he said "hi"'],
     ]);
   });
 
   it("handles newlines inside quoted fields", () => {
-    expect(parseCsv('a,b\n"line1\nline2",z')).toEqual([
+    expect(parseCsv('a,b\n"line1\nline2",z').rows).toEqual([
       ["a", "b"],
       ["line1\nline2", "z"],
     ]);
   });
 
   it("strips a UTF-8 BOM so the first header still matches", () => {
-    expect(parseCsv("﻿code,description")[0]).toEqual(["code", "description"]);
+    expect(parseCsv("﻿code,description").rows[0]).toEqual(["code", "description"]);
   });
 
   it("keeps empty trailing fields but drops a trailing blank line", () => {
-    expect(parseCsv("a,b,\n")).toEqual([["a", "b", ""]]);
+    expect(parseCsv("a,b,\n").rows).toEqual([["a", "b", ""]]);
   });
 
   it("round-trips through toCsv", () => {
@@ -43,7 +43,16 @@ describe("parseCsv", () => {
       ["code", "desc"],
       ["A-1", 'quoted "thing", with comma'],
     ];
-    expect(parseCsv(toCsv(rows))).toEqual(rows);
+    expect(parseCsv(toCsv(rows)).rows).toEqual(rows);
+  });
+
+  it("flags an unterminated quote instead of swallowing the rest of the file", () => {
+    const bad =
+      'code,description,unit,material_cost,labor_hours\r\nA,"unclosed,EA,1,1\r\nB,Good,EA,2,2\r\n';
+    expect(parseCsv(bad).unterminatedQuote).toBe(true);
+    // and the importer refuses rather than importing A at $0 and losing B
+    const r = parseItemsCsv(bad);
+    expect(r.errors.some((e) => e.includes("never closed"))).toBe(true);
   });
 });
 
@@ -94,6 +103,26 @@ describe("items CSV", () => {
     expect(r.errors[1]).toContain("Line 4");
     expect(r.errors[2]).toContain("Line 5");
     expect(r.errors[3]).toContain("Line 6");
+  });
+
+  it("rejects a short row instead of importing it at $0", () => {
+    const r = parseItemsCsv("code,description,unit,material_cost,labor_hours\nA,Widget");
+    expect(r.rows).toEqual([]);
+    expect(r.errors[0]).toContain("only 2 of 5 columns");
+  });
+
+  it("does not read a European decimal comma as a thousands separator", () => {
+    // "3,5" meaning three and a half must fail loudly, not import as 35
+    const bad = parseItemsCsv(
+      'code,description,unit,material_cost,labor_hours\nA,Widget,EA,"3,5",0.1'
+    );
+    expect(bad.rows).toEqual([]);
+    expect(bad.errors[0]).toContain("not a number");
+    // real thousands separators still work
+    const ok = parseItemsCsv(
+      'code,description,unit,material_cost,labor_hours\nA,Gear,EA,"1,250,000.50",1'
+    );
+    expect(ok.rows[0].material_cost).toBe(1250000.5);
   });
 
   it("skips fully blank rows without complaining", () => {
@@ -165,6 +194,29 @@ describe("assemblies CSV", () => {
     expect(merged.errors).toHaveLength(1);
     expect(merged.errors[0]).toContain("NOPE-99");
     expect(merged.added).toBe(1);
+    // the caller must not persist a partial component list over a good one
+    const id = merged.assemblies[0].id;
+    expect(merged.touched.has(id)).toBe(true);
+    expect(merged.incomplete.has(id)).toBe(true);
+  });
+
+  it("a component-less row renames an assembly without emptying it", () => {
+    const parsed = parseAssembliesCsv(
+      "assembly_code,assembly_name,item_code,quantity\nA-REC,Renamed assembly,,"
+    );
+    const merged = mergeAssemblies(assemblies, parsed.rows, items, "u");
+    expect(merged.assemblies[0].name).toBe("Renamed assembly");
+    // untouched means the caller leaves the existing six components alone
+    expect(merged.touched.size).toBe(0);
+    expect(merged.incomplete.size).toBe(0);
+  });
+
+  it("rejects a negative component quantity", () => {
+    const r = parseAssembliesCsv(
+      "assembly_code,assembly_name,item_code,quantity\nA-X,X,DPLX-15,-5"
+    );
+    expect(r.rows).toEqual([]);
+    expect(r.errors[0]).toContain("negative");
   });
 
   it("supports an assembly with no components yet", () => {
@@ -177,6 +229,7 @@ describe("assemblies CSV", () => {
     expect(merged.assemblies).toHaveLength(1);
     expect(merged.components).toEqual([]);
     expect(merged.errors).toEqual([]);
+    expect(merged.touched.size).toBe(0);
   });
 
   it("requires an assembly code", () => {

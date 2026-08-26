@@ -5,7 +5,8 @@
 
 import { useRef, useState } from "react";
 import { useWorkspace } from "@/store/workspace";
-import { fmt } from "@/lib/units";
+import { fmt, parseNumericInput } from "@/lib/units";
+import { assemblyUsage, itemUsage } from "@/lib/estimate";
 import {
   assembliesToCsv,
   itemsToCsv,
@@ -82,7 +83,11 @@ function CsvBar({
     }
     const merged = mergeAssemblies(ws.assemblies, rows, ws.items, ws.userId!);
     for (const a of merged.assemblies) ws.upsertAssembly(a);
+    // Only rewrite the component list of assemblies the file fully described.
+    // Replacing a good assembly with a partial one under-extends every takeoff
+    // that uses it, so a file with an unknown item code changes nothing here.
     for (const a of merged.assemblies) {
+      if (!merged.touched.has(a.id) || merged.incomplete.has(a.id)) continue;
       ws.setAssemblyItems(
         a.id,
         merged.components.filter((c) => c.assembly_id === a.id)
@@ -247,7 +252,23 @@ function ItemsTable() {
                     className="btn btn-danger !border-transparent !px-1 !py-0 text-xs"
                     title="Delete item"
                     onClick={() => {
-                      if (confirm(`Delete item "${it.description || it.code}"?`)) ws.deleteItem(it.id);
+                      const use = itemUsage(it.id, ws.assemblies, ws.assemblyItems, ws.layers);
+                      const warn: string[] = [];
+                      if (use.assemblies.length > 0) {
+                        warn.push(
+                          `It is a component of ${use.assemblies.length} assembly(s): ` +
+                            `${use.assemblies.map((a) => a.name).join(", ")}. ` +
+                            `Those assemblies will price lower from now on.`
+                        );
+                      }
+                      if (use.layers.length > 0) {
+                        warn.push(
+                          `${use.layers.length} takeoff layer(s) are priced from it: ` +
+                            `${use.layers.map((l) => l.name).join(", ")}.`
+                        );
+                      }
+                      const msg = [`Delete item "${it.description || it.code}"?`, ...warn].join("\n\n");
+                      if (confirm(msg)) ws.deleteItem(it.id);
                     }}
                   >
                     ✕
@@ -288,8 +309,9 @@ function NumCell({
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         if (text != null) {
-          const v = parseFloat(text);
-          onCommit(Number.isFinite(v) ? v : 0);
+          // Unreadable input keeps the previous value rather than zeroing a price.
+          const v = parseNumericInput(text);
+          if (v !== null) onCommit(v);
         }
         setText(null);
       }}
@@ -401,7 +423,14 @@ function AssemblyEditor({ assembly }: { assembly: Assembly }) {
         <button
           className="btn btn-danger !px-2 !py-1 text-xs"
           onClick={() => {
-            if (confirm(`Delete assembly "${assembly.name}"?`)) ws.deleteAssembly(assembly.id);
+            const used = assemblyUsage(assembly.id, ws.layers);
+            const msg =
+              used.length > 0
+                ? `Delete assembly "${assembly.name}"?\n\n${used.length} takeoff layer(s) are priced from it (${used
+                    .map((l) => l.name)
+                    .join(", ")}) and will drop out of the estimate until relinked.`
+                : `Delete assembly "${assembly.name}"?`;
+            if (confirm(msg)) ws.deleteAssembly(assembly.id);
           }}
         >
           Delete

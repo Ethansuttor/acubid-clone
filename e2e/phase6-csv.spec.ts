@@ -49,7 +49,8 @@ test("CSV import/export of the item and assembly database", async ({ page }) => 
   await expect(page.locator('input[value="3.15"]')).toBeVisible();
   await expect(page.getByText("Item database (3)")).toBeVisible();
 
-  // Import assemblies: the unknown item code is reported, not skipped quietly
+  // Import assemblies with one unknown item code: the error is reported, and
+  // the assembly is left unbuilt rather than persisted half-complete.
   await page.getByTestId("import-assemblies").setInputFiles({
     name: "asm.csv",
     mimeType: "text/csv",
@@ -58,8 +59,18 @@ test("CSV import/export of the item and assembly database", async ({ page }) => 
   await expect(page.getByTestId("import-ok")).toHaveText("1 assembly(s) added, 0 updated");
   await expect(page.getByTestId("import-error")).toContainText("NOPE-99");
   await page.getByText("Duplex receptacle assembly").click();
-  // DPLX-15 was repriced to 3.15/0.22 by the second import, so the assembly
-  // rolls up 3.15 + 6 x 0.68 = 7.23 material and 0.22 + 6 x 0.032 = 0.412 hr
+  await expect(page.getByText("Per assembly:")).toContainText("$0.00");
+
+  // Fix the file and re-import: now the components are applied.
+  await page.getByTestId("import-assemblies").setInputFiles({
+    name: "asm2.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(ASM_CSV.split("\n").filter((l) => !l.includes("NOPE-99")).join("\n")),
+  });
+  await expect(page.getByTestId("import-ok")).toHaveText("0 assembly(s) added, 1 updated");
+  await expect(page.getByTestId("import-error")).toHaveCount(0);
+  // DPLX-15 was repriced to 3.15/0.22 by the second item import, so the
+  // assembly rolls up 3.15 + 6 x 0.68 = 7.23 material, 0.22 + 6 x 0.032 = 0.412 hr
   await expect(page.getByText("$7.23")).toBeVisible();
   await expect(page.getByText("0.412")).toBeVisible();
 

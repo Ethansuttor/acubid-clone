@@ -192,11 +192,23 @@ export function buildWorkbook(data: {
 
   // An exported bid that is quietly missing quantity is worse than no export.
   const issueRows: number[] = [];
-  if (issues.length > 0) {
+  let missingHeaderRow = 0;
+  const missing = issues.filter((i) => i.severity === "missing");
+  const warnings = issues.filter((i) => i.severity === "warning");
+  if (missing.length > 0) {
     rows.push(["!! QUANTITY MISSING FROM THIS BID", ""]);
-    for (const iss of issues) {
-      rows.push([`   ${iss.layerName} (${money(iss.quantity)}): ${iss.detail}`, ""]);
+    missingHeaderRow = rows.length;
+    for (const iss of missing) {
+      const qty = iss.quantity > 0 ? ` (${money(iss.quantity)})` : "";
+      rows.push([`   ${iss.layerName}${qty}: ${iss.detail}`, ""]);
       issueRows.push(rows.length);
+    }
+    rows.push(["", ""]);
+  }
+  if (warnings.length > 0) {
+    rows.push(["! CHECK THESE", ""]);
+    for (const iss of warnings) {
+      rows.push([`   ${iss.layerName}: ${iss.detail}`, ""]);
     }
     rows.push(["", ""]);
   }
@@ -239,8 +251,8 @@ export function buildWorkbook(data: {
   for (const r of issueRows) {
     sum.getRow(r).font = { bold: true, color: { argb: "FFC00000" } };
   }
-  if (issues.length > 0) {
-    sum.getRow(3).font = { bold: true, size: 12, color: { argb: "FFC00000" } };
+  if (missingHeaderRow > 0) {
+    sum.getRow(missingHeaderRow).font = { bold: true, size: 12, color: { argb: "FFC00000" } };
   }
   const bidRow = sum.getRow(rows.length);
   bidRow.font = { bold: true, size: 12, color: { argb: "FFB97E17" } };

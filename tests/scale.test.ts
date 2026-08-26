@@ -41,6 +41,52 @@ describe("parseDrawingScale", () => {
     expect(parseDrawingScale('1" = 99999\'')).toBeNull();
     expect(parseDrawingScale('1000" = 1\'')).toBeNull();
   });
+
+  // Everything below produced a plausible-looking WRONG scale before the
+  // parser was tightened. A wrong scale silently mis-measures every linear
+  // and area quantity on the sheet, so each case must reject or read right.
+
+  it("ignores sheet size and sheet numbering printed beside the scale", () => {
+    // "24X36" previously parsed as 24 inches -> 3x too long
+    expect(parseDrawingScale('SCALE 1/8"=1\' 24X36')).toBeCloseTo(8, 9);
+    expect(parseDrawingScale('1/8" = 1\' 2 OF 5')).toBeCloseTo(8, 9);
+    expect(parseDrawingScale('1/4" = 1\'-0"   30X42')).toBeCloseTo(4, 9);
+  });
+
+  it("reads mixed-number detail scales as whole plus fraction", () => {
+    // "1-1/2" previously matched only the 1/2 -> 3x too long
+    expect(parseDrawingScale('1-1/2" = 1\'-0"')).toBeCloseTo(2 / 3, 9);
+    expect(parseDrawingScale('1 1/2" = 1\'-0"')).toBeCloseTo(2 / 3, 9);
+    expect(parseDrawingScale('2-1/2" = 1\'-0"')).toBeCloseTo(0.4, 9);
+    expect(parseDrawingScale('3" = 1\'-0"')).toBeCloseTo(1 / 3, 9);
+  });
+
+  it("rejects an inches term of twelve or more", () => {
+    expect(parseDrawingScale('1/4" = 1\'-99"')).toBeNull();
+    expect(parseDrawingScale('1/4" = 1\'-12"')).toBeNull();
+    expect(parseDrawingScale('1/4" = 1\'-6"')).toBeCloseTo(6, 9);
+  });
+
+  it("refuses to pick a winner when the sheet prints two different scales", () => {
+    expect(parseDrawingScale('3/4"=1\'-0", 1/4"=1\'-0"')).toBeNull();
+    expect(parseDrawingScale('1/4" = 1\'-0" & 1" = 10\'')).toBeNull();
+    // the same scale repeated is not ambiguous
+    expect(parseDrawingScale('1/4" = 1\'-0"   PLAN 1/4" = 1\'-0"')).toBeCloseTo(4, 9);
+  });
+
+  it("requires an inch marker or a fraction, so stray text is not a scale", () => {
+    expect(parseDrawingScale("REV 3 = 1'")).toBeNull();
+    expect(parseDrawingScale("PANEL 2 = 1' SCHEDULE")).toBeNull();
+    expect(parseDrawingScale("DRAWN 1 = 1' BY JS")).toBeNull();
+  });
+
+  it("still rejects metric and reversed notations", () => {
+    expect(parseDrawingScale("1:100")).toBeNull();
+    expect(parseDrawingScale("1cm = 1m")).toBeNull();
+    expect(parseDrawingScale("1 cm = 1 m")).toBeNull();
+    expect(parseDrawingScale("1'-0\" = 1/4\"")).toBeNull();
+    expect(parseDrawingScale('SCALE: 1/4"')).toBeNull();
+  });
 });
 
 describe("scale to calibration", () => {
@@ -68,5 +114,6 @@ describe("scale to calibration", () => {
     expect(formatScale(4)).toBe('1/4" = 1\'-0"');
     expect(formatScale(8)).toBe('1/8" = 1\'-0"');
     expect(formatScale(20)).toBe("1\" = 20'");
+    expect(formatScale(2 / 3)).toBe('1-1/2" = 1\'-0"');
   });
 });

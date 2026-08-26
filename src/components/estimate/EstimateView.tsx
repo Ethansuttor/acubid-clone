@@ -24,27 +24,35 @@ export default function EstimateView() {
   );
   const rollup = materialRollup(lines);
   const totals = estimateTotals(lines);
-  const uncal = quantities.filter((q) => q.needsCalibration);
+  const missing = issues.filter((i) => i.severity === "missing");
+  const warnings = issues.filter((i) => i.severity === "warning");
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {(issues.length > 0 || uncal.length > 0) && (
+      {missing.length > 0 && (
         <div className="border-b-2 border-[var(--color-danger)] bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] px-4 py-2 text-xs text-[var(--color-danger)]">
           <div className="mb-1 font-mono text-[10.5px] uppercase tracking-widest">
             Quantity missing from this bid
           </div>
-          {issues.map((iss) => (
+          {missing.map((iss) => (
             <div key={`${iss.layerId}-${iss.kind}`} data-testid="estimate-issue">
-              <span className="font-semibold">{iss.layerName}</span>{" "}
-              <span className="num">({fmtQty(iss.quantity)})</span> — {iss.detail}
+              <span className="font-semibold">{iss.layerName}</span>
+              {iss.quantity > 0 && <span className="num"> ({fmtQty(iss.quantity)})</span>} —{" "}
+              {iss.detail}
             </div>
           ))}
-          {uncal.length > 0 && (
-            <div>
-              Takeoff on uncalibrated sheets is not measured:{" "}
-              {uncal.map((q) => q.layer.name).join(", ")}
+        </div>
+      )}
+      {warnings.length > 0 && (
+        <div className="border-b border-[var(--color-volt-dim)] bg-[color-mix(in_srgb,var(--color-volt)_10%,transparent)] px-4 py-2 text-xs text-[var(--color-volt)]">
+          <div className="mb-1 font-mono text-[10.5px] uppercase tracking-widest">
+            Check these
+          </div>
+          {warnings.map((iss) => (
+            <div key={`${iss.layerId}-${iss.kind}`} data-testid="estimate-warning">
+              <span className="font-semibold">{iss.layerName}</span> — {iss.detail}
             </div>
-          )}
+          ))}
         </div>
       )}
 

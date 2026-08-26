@@ -24,8 +24,18 @@ export interface SheetProposal extends SheetInfo {
   error?: string;
 }
 
+/** Largest request body accepted, in bytes. Each entry is a base64 image. */
+const MAX_BODY_BYTES = 48 * 1024 * 1024;
+
 async function authorize(req: NextRequest): Promise<boolean> {
-  if (process.env.NEXT_PUBLIC_LOCAL_MODE === "1") return true;
+  // Local mode is an offline dev/test configuration. Guarding on NODE_ENV too
+  // means a stray env var in a deployment cannot disable auth on this route.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_LOCAL_MODE === "1"
+  ) {
+    return true;
+  }
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return false;
   const db = createClient(
@@ -51,9 +61,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: `Request too large (${Math.round(declared / 1e6)} MB). Reduce the render scale or work sheet by sheet.` },
+      { status: 413 }
+    );
+  }
+
+  let raw: string;
+  try {
+    raw = await req.text();
+  } catch {
+    return NextResponse.json({ error: "Could not read request body" }, { status: 400 });
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Request too large" }, { status: 413 });
+  }
+
   let body: SheetRequest;
   try {
-    body = (await req.json()) as SheetRequest;
+    body = JSON.parse(raw) as SheetRequest;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }

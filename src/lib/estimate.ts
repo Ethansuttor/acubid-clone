@@ -22,6 +22,8 @@ export interface LayerQuantity {
   quantity: number;
   /** Number of takeoff objects included. */
   objects: number;
+  /** Objects that could not be measured because their sheet has no scale. */
+  unmeasured: number;
   /** True if any linear/area takeoff sits on an uncalibrated sheet. */
   needsCalibration: boolean;
 }
@@ -53,11 +55,15 @@ export interface EstimateIssue {
   layerName: string;
   quantity: number;
   kind:
-    | "unlinked"          // no item or assembly chosen
-    | "missing-item"      // linked item no longer exists
-    | "missing-assembly"  // linked assembly no longer exists
-    | "empty-assembly"    // assembly has no component items
-    | "missing-component"; // an assembly component's item no longer exists
+    | "unlinked"           // no item or assembly chosen
+    | "missing-item"       // linked item no longer exists
+    | "missing-assembly"   // linked assembly no longer exists
+    | "empty-assembly"     // assembly has no component items
+    | "missing-component"  // an assembly component's item no longer exists
+    | "uncalibrated"       // measured objects on a sheet with no scale
+    | "unit-mismatch";     // priced per a unit the layer does not measure
+  /** "missing": quantity is absent or short. "warning": priced, but suspect. */
+  severity: "missing" | "warning";
   detail: string;
 }
 
@@ -111,6 +117,20 @@ export function countableTakeoffs(takeoffs: Takeoff[]): Takeoff[] {
   return takeoffs.filter((t) => t.status === "confirmed");
 }
 
+const EXPECTED_UNIT: Record<string, string> = { count: "EA", linear: "FT", area: "SF" };
+
+/**
+ * Map common spellings onto the three units a takeoff tool can measure.
+ * Anything else is the estimator's own unit and is left alone.
+ */
+function normalizeUnit(unit: string): string | null {
+  const u = (unit ?? "").trim().toUpperCase();
+  if (["EA", "EACH", "PC", "PCS"].includes(u)) return "EA";
+  if (["FT", "LF", "FOOT", "FEET", "'"].includes(u)) return "FT";
+  if (["SF", "SQFT", "SQ FT", "SQ.FT."].includes(u)) return "SF";
+  return null;
+}
+
 /** A layer's repeat factor, defaulting to 1 for rows written before the field existed. */
 function multiplierOf(layer: Layer): number {
   const m = Number(layer.typical_multiplier);
@@ -127,14 +147,14 @@ export function layerQuantities(
   return layers.map((layer) => {
     let rawQuantity = 0;
     let objects = 0;
-    let needsCalibration = false;
+    let unmeasured = 0;
     for (const t of confirmed) {
       if (t.layer_id !== layer.id) continue;
       const sheet = sheetById.get(t.sheet_id);
       if (!sheet) continue;
       const q = takeoffQuantity(t, sheet, layer);
       if (q == null) {
-        needsCalibration = true;
+        unmeasured += 1;
         continue;
       }
       rawQuantity += q;
@@ -145,7 +165,8 @@ export function layerQuantities(
       rawQuantity,
       quantity: rawQuantity * multiplierOf(layer),
       objects,
-      needsCalibration,
+      unmeasured,
+      needsCalibration: unmeasured > 0,
     };
   });
 }
@@ -180,10 +201,22 @@ export function extendEstimate(
     layer: Layer,
     quantity: number,
     kind: EstimateIssue["kind"],
-    detail: string
-  ) => issues.push({ layerId: layer.id, layerName: layer.name, quantity, kind, detail });
+    detail: string,
+    severity: EstimateIssue["severity"] = "missing"
+  ) =>
+    issues.push({ layerId: layer.id, layerName: layer.name, quantity, kind, severity, detail });
 
-  for (const { layer, quantity } of quantities) {
+  for (const { layer, quantity, unmeasured } of quantities) {
+    // Objects on an uncalibrated sheet contribute nothing and would otherwise
+    // leave no trace at all in the summary or the export.
+    if (unmeasured > 0) {
+      flag(
+        layer,
+        0,
+        "uncalibrated",
+        `${unmeasured} takeoff object(s) sit on a sheet with no scale set and are not measured — calibrate the sheet`
+      );
+    }
     if (quantity === 0) continue;
 
     if (layer.item_id) {
@@ -191,6 +224,17 @@ export function extendEstimate(
       if (!item) {
         flag(layer, quantity, "missing-item", "Linked item no longer exists in the database");
         continue;
+      }
+      const expected = EXPECTED_UNIT[layer.tool];
+      const actual = normalizeUnit(item.unit);
+      if (actual && actual !== expected) {
+        flag(
+          layer,
+          quantity,
+          "unit-mismatch",
+          `Layer measures ${expected} but "${item.description}" is priced per ${item.unit}`,
+          "warning"
+        );
       }
       lines.push({
         layerId: layer.id,
@@ -300,7 +344,21 @@ export function estimateTotals(lines: EstimateLine[]): {
  *   profit       = subtotal * profitPct%
  *   bidPrice     = subtotal + profit + direct costs carried at cost
  */
-export function summarize(input: EstimateSummaryInput): EstimateSummary {
+export function summarize(raw: EstimateSummaryInput): EstimateSummary {
+  // A project row written before the bid-math columns existed yields undefined
+  // percentages; without this guard the whole bid renders as NaN.
+  const n = (v: number) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const input: EstimateSummaryInput = {
+    ...raw,
+    materialBase: n(raw.materialBase),
+    laborHoursBase: n(raw.laborHoursBase),
+    laborRate: n(raw.laborRate),
+    wastePct: n(raw.wastePct),
+    taxPct: n(raw.taxPct),
+    laborFactorPct: n(raw.laborFactorPct),
+    overheadPct: n(raw.overheadPct),
+    profitPct: n(raw.profitPct),
+  };
   const wasteAmount = input.materialBase * (input.wastePct / 100);
   const materialAfterWaste = input.materialBase + wasteAmount;
   const salesTax = materialAfterWaste * (input.taxPct / 100);
@@ -346,4 +404,30 @@ export function summarize(input: EstimateSummaryInput): EstimateSummary {
 /** Round for display/export only — internal math stays full precision. */
 export function money(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * Where an item is referenced. Deleting an item cascades: its assembly
+ * component rows go with it, which quietly shortens every assembly that used
+ * it and under-extends every takeoff on those assemblies. Nothing downstream
+ * can detect that after the fact, so the warning has to happen at delete time.
+ */
+export function itemUsage(
+  itemId: string,
+  assemblies: Assembly[],
+  assemblyItems: AssemblyItem[],
+  layers: Layer[]
+): { assemblies: Assembly[]; layers: Layer[] } {
+  const usedIn = new Set(
+    assemblyItems.filter((ai) => ai.item_id === itemId).map((ai) => ai.assembly_id)
+  );
+  return {
+    assemblies: assemblies.filter((a) => usedIn.has(a.id)),
+    layers: layers.filter((l) => l.item_id === itemId),
+  };
+}
+
+/** Layers that would lose their pricing if this assembly were deleted. */
+export function assemblyUsage(assemblyId: string, layers: Layer[]): Layer[] {
+  return layers.filter((l) => l.assembly_id === assemblyId);
 }

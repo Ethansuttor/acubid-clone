@@ -5,29 +5,60 @@
 // a stated scale gives feet-per-unit directly — provided the PDF was plotted
 // at true size, which is why the app always asks the estimator to confirm.
 
-/** Feet represented by one inch of paper, or null if the text has no usable scale. */
+/**
+ * Feet represented by one inch of paper, or null if the text has no single
+ * usable scale.
+ *
+ * Title-block text is noisy — sheet sizes ("24X36"), sheet numbering ("2 OF
+ * 5") and revision marks sit right next to the scale, and a detail sheet can
+ * print several scales at once. Every rule below exists because some piece of
+ * that noise otherwise parses into a plausible-looking wrong number, and a
+ * wrong scale silently mis-measures every run on the sheet:
+ *
+ *  - the paper term must carry an inch marker or be a fraction, so "REV 3 = 1'"
+ *    is not a scale;
+ *  - a trailing inches term must carry its own inch marker, so "1'-0"" reads as
+ *    one foot but "1' 24X36" does not read as twenty-five feet;
+ *  - inches must be under twelve;
+ *  - and if the text yields two different scales, it yields none.
+ */
 export function parseDrawingScale(input: string): number | null {
   const s = (input ?? "").trim().toLowerCase();
   if (s === "") return null;
   // Not-to-scale markings must never produce a calibration.
-  if (/\b(nts|n\.t\.s\.?|not to scale|as noted|varies|none)\b/.test(s)) return null;
+  if (/\b(nts|n\.t\.s\.?|not to scale|as noted|varies|none|n\/a)\b/.test(s)) return null;
 
-  const paper = "(\\d+(?:\\.\\d+)?)\\s*(?:\\/\\s*(\\d+(?:\\.\\d+)?))?\\s*(?:\"|''|in\\b|inch(?:es)?\\b)?";
-  const feet = "(\\d+(?:\\.\\d+)?)\\s*(?:'|ft\\b|feet\\b|foot\\b)";
-  const inches = "(?:\\s*[-\\s]\\s*(\\d+(?:\\.\\d+)?)\\s*(?:\"|''|in\\b)?)?";
-  const m = s.match(new RegExp(`${paper}\\s*=\\s*${feet}${inches}`));
-  if (!m) return null;
+  //         whole          numerator      denominator      inch marker
+  const paper = "(?:(\\d+(?:\\.\\d+)?)\\s*[-\\s]\\s*)?(\\d+(?:\\.\\d+)?)\\s*(?:\\/\\s*(\\d+(?:\\.\\d+)?))?\\s*(\"|\'\'|in\\b|inch(?:es)?\\b)?";
+  const feet = "(\\d+(?:\\.\\d+)?)\\s*(?:\'|ft\\b|feet\\b|foot\\b)";
+  // A trailing inches term only counts with its own marker.
+  const inches = "(?:\\s*[-\\s]\\s*(\\d+(?:\\.\\d+)?)\\s*(?:\"|\'\'|in\\b|inch(?:es)?\\b))?";
+  const re = new RegExp(`${paper}\\s*=\\s*${feet}${inches}`, "g");
 
-  const [, whole, denom, ft, extraIn] = m;
-  const paperInches = denom ? Number(whole) / Number(denom) : Number(whole);
-  const realFeet = Number(ft) + (extraIn ? Number(extraIn) / 12 : 0);
-  if (!Number.isFinite(paperInches) || paperInches <= 0) return null;
-  if (!Number.isFinite(realFeet) || realFeet <= 0) return null;
+  const found = new Set<number>();
+  for (const m of s.matchAll(re)) {
+    const [, whole, numerator, denominator, marker, ft, extraIn] = m;
+    // Without a fraction or an inch marker this is not a paper measurement.
+    if (!denominator && !marker) continue;
 
-  const feetPerInch = realFeet / paperInches;
-  // Guard against nonsense readings from a misread title block.
-  if (feetPerInch < 0.05 || feetPerInch > 2000) return null;
-  return feetPerInch;
+    const paperInches = denominator
+      ? (whole ? Number(whole) : 0) + Number(numerator) / Number(denominator)
+      : Number(numerator);
+    const inchPart = extraIn ? Number(extraIn) : 0;
+    if (inchPart >= 12) continue; // a misread like 1'-99"
+    const realFeet = Number(ft) + inchPart / 12;
+
+    if (!Number.isFinite(paperInches) || paperInches <= 0) continue;
+    if (!Number.isFinite(realFeet) || realFeet <= 0) continue;
+
+    const feetPerInch = realFeet / paperInches;
+    // Guard against nonsense readings from a misread title block.
+    if (feetPerInch < 0.05 || feetPerInch > 2000) continue;
+    found.add(Number(feetPerInch.toFixed(9)));
+  }
+
+  // Two different scales in one string is ambiguous, not a best guess.
+  return found.size === 1 ? [...found][0] : null;
 }
 
 /** PDF user-space units per inch. */
@@ -63,6 +94,8 @@ export function formatScale(feetPerInch: number): string {
     '1/2" = 1\'-0"': 2,
     '3/4" = 1\'-0"': 4 / 3,
     '1" = 1\'-0"': 1,
+    '1-1/2" = 1\'-0"': 2 / 3,
+    '3" = 1\'-0"': 1 / 3,
   };
   for (const [label, v] of Object.entries(common)) {
     if (Math.abs(v - feetPerInch) < 1e-6) return label;

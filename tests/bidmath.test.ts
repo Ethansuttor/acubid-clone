@@ -20,8 +20,10 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  assemblyUsage,
   extendEstimate,
   estimateTotals,
+  itemUsage,
   layerQuantities,
   summarize,
 } from "@/lib/estimate";
@@ -202,5 +204,106 @@ describe("quantity is never silently dropped from a bid", () => {
   it("layers with zero quantity raise no issue", () => {
     const empty = layerQuantities(layers, [], [sheet]);
     expect(extendEstimate(empty, items, assemblies, assemblyItems).issues).toEqual([]);
+  });
+
+  it("reports takeoff stranded on an uncalibrated sheet", () => {
+    // Previously this contributed 0 and raised nothing, so 180 ft of conduit
+    // could disappear from the Summary tab and the Excel export in silence.
+    const uncal = { ...sheet, scale_ft_per_unit: null };
+    const q = layerQuantities(layers, takeoffs, [uncal]);
+    const r = extendEstimate(q, items, assemblies, assemblyItems);
+    const stranded = r.issues.filter((i) => i.kind === "uncalibrated");
+    expect(stranded.map((i) => i.layerId).sort()).toEqual(["l-emt", "l-wire"]);
+    expect(stranded.every((i) => i.severity === "missing")).toBe(true);
+    expect(stranded[0].detail).toContain("no scale");
+    // counts are unaffected by calibration and still price normally
+    expect(estimateTotals(r.lines).materialBase).toBeCloseTo(566.16 - 21.6 - 61.2, 8);
+  });
+
+  it("counts unmeasured objects separately from measured ones", () => {
+    const uncal = { ...sheet, scale_ft_per_unit: null };
+    const q = layerQuantities(layers, takeoffs, [uncal]);
+    const wire = q.find((x) => x.layer.id === "l-wire")!;
+    expect(wire.objects).toBe(0);
+    expect(wire.unmeasured).toBe(1);
+    expect(wire.needsCalibration).toBe(true);
+  });
+});
+
+describe("unit sanity between a layer and its item", () => {
+  it("warns when a count layer is priced per foot", () => {
+    // 8 receptacles x $0.68/FT is arithmetically fine and commercially wrong
+    const mislinked = layers.map((l) =>
+      l.id === "l-rec" ? { ...l, assembly_id: null, item_id: "i-emt05" } : l
+    );
+    const r = extendEstimate(
+      layerQuantities(mislinked, takeoffs, [sheet]),
+      items,
+      assemblies,
+      assemblyItems
+    );
+    const warn = r.issues.find((i) => i.kind === "unit-mismatch")!;
+    expect(warn.severity).toBe("warning");
+    expect(warn.detail).toContain("measures EA");
+    // it is a warning, not a removal: the line is still priced
+    expect(r.lines.some((l) => l.layerId === "l-rec")).toBe(true);
+  });
+
+  it("accepts matching units and unfamiliar custom units without noise", () => {
+    expect(
+      extendEstimate(quantities, items, assemblies, assemblyItems).issues
+    ).toEqual([]);
+    const custom = items.map((i) =>
+      i.id === "i-led" ? { ...i, unit: "CTN" } : i
+    );
+    const r = extendEstimate(quantities, custom, assemblies, assemblyItems);
+    expect(r.issues).toEqual([]);
+  });
+});
+
+describe("deleting from the database is warned, not silent", () => {
+  it("reports the assemblies and layers an item is used by", () => {
+    // The database cascades component rows away on delete, so nothing
+    // downstream can detect the shortfall afterwards — hence the pre-check.
+    const use = itemUsage("i-emt05", assemblies, assemblyItems, layers);
+    expect(use.assemblies.map((a) => a.code)).toEqual(["A-REC"]);
+    expect(use.layers).toEqual([]);
+
+    const direct = itemUsage("i-led", assemblies, assemblyItems, layers);
+    expect(direct.assemblies).toEqual([]);
+    expect(direct.layers.map((l) => l.id)).toEqual(["l-led"]);
+  });
+
+  it("reports the layers an assembly prices", () => {
+    expect(assemblyUsage("a-rec", layers).map((l) => l.id)).toEqual(["l-rec"]);
+    expect(assemblyUsage("nope", layers)).toEqual([]);
+  });
+});
+
+describe("summarize tolerates malformed inputs", () => {
+  it("treats undefined percentages as zero instead of rendering NaN", () => {
+    // A project row from a database predating the bid-math columns
+    const legacy = summarize({
+      ...totals,
+      laborRate: 95,
+      overheadPct: 12,
+      profitPct: 10,
+      wastePct: undefined as unknown as number,
+      taxPct: undefined as unknown as number,
+      laborFactorPct: undefined as unknown as number,
+      directCosts: [],
+    });
+    expect(Number.isFinite(legacy.bidPrice)).toBe(true);
+    expect(legacy.bidPrice).toBeCloseTo(2280.82624, 8);
+  });
+
+  it("ignores a non-numeric direct cost amount rather than poisoning the bid", () => {
+    const s = summarize({
+      ...totals,
+      ...summaryInputs,
+      directCosts: [cost("bad", "abc" as unknown as number, true)],
+    });
+    expect(Number.isFinite(s.bidPrice)).toBe(true);
+    expect(s.directCostsWithOhp).toBe(0);
   });
 });

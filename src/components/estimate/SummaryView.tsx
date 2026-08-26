@@ -12,7 +12,7 @@ import {
   summarize,
 } from "@/lib/estimate";
 import { exportToExcel } from "@/lib/excel";
-import { fmt } from "@/lib/units";
+import { fmt, parseNumericInput } from "@/lib/units";
 import type { DirectCostCategory } from "@/lib/types";
 
 const CATEGORIES: DirectCostCategory[] = [
@@ -82,10 +82,11 @@ export default function SummaryView() {
   return (
     <div className="blueprint h-full overflow-auto">
       <div className="mx-auto max-w-5xl px-6 py-8">
-        {issues.length > 0 && (
+        {issues.some((i) => i.severity === "missing") && (
           <div className="panel mb-4 border-l-2 !border-l-[var(--color-danger)] px-4 py-2 text-xs text-[var(--color-danger)]">
             <span className="font-mono uppercase tracking-widest">
-              {issues.length} layer(s) carry quantity that is missing from this bid
+              {issues.filter((i) => i.severity === "missing").length} layer(s) carry quantity
+              that is missing from this bid
             </span>{" "}
             — see the Estimate tab.
           </div>
@@ -103,18 +104,21 @@ export default function SummaryView() {
             <Field
               testId="waste-pct"
               label="Material waste (%)"
+              percent
               value={project.waste_pct}
               onCommit={(v) => ws.updateProject({ waste_pct: v })}
             />
             <Field
               testId="tax-pct"
               label="Sales tax (%)"
+              percent
               value={project.tax_pct}
               onCommit={(v) => ws.updateProject({ tax_pct: v })}
             />
             <Field
               testId="labor-factor-pct"
               label="Labor factor (%)"
+              percent
               hint="Job conditions: +15 costs 15% more hours"
               value={project.labor_factor_pct}
               onCommit={(v) => ws.updateProject({ labor_factor_pct: v })}
@@ -122,12 +126,14 @@ export default function SummaryView() {
             <Field
               testId="overhead-pct"
               label="Overhead (%)"
+              percent
               value={project.overhead_pct}
               onCommit={(v) => ws.updateProject({ overhead_pct: v })}
             />
             <Field
               testId="profit-pct"
               label="Profit (%)"
+              percent
               value={project.profit_pct}
               onCommit={(v) => ws.updateProject({ profit_pct: v })}
             />
@@ -320,18 +326,30 @@ function Field({
   onCommit,
   hint,
   testId,
+  percent,
 }: {
   label: string;
   value: number;
   onCommit: (v: number) => void;
   hint?: string;
   testId?: string;
+  percent?: boolean;
 }) {
+  // 0.12 in a percent field almost always means 12%, and silently bidding
+  // 0.12% low is invisible until the job is lost.
+  const looksLikeFraction = percent && value > 0 && value < 1;
   return (
     <div className="mb-3">
       <label className="titlebar mb-1 block">{label}</label>
       <NumInput value={value} onCommit={onCommit} testId={testId} />
-      {hint && <div className="mt-0.5 text-[10px] text-[var(--color-fg-faint)]">{hint}</div>}
+      {looksLikeFraction && (
+        <div data-testid="pct-hint" className="mt-0.5 text-[10px] text-[var(--color-volt)]">
+          {value} means {value}% — type {value * 100} for {value * 100}%
+        </div>
+      )}
+      {hint && !looksLikeFraction && (
+        <div className="mt-0.5 text-[10px] text-[var(--color-fg-faint)]">{hint}</div>
+      )}
     </div>
   );
 }
@@ -355,8 +373,8 @@ function NumInput({
       onFocus={() => setText(value === 0 ? "" : String(value))}
       onChange={(e) => {
         setText(e.target.value);
-        const v = parseFloat(e.target.value);
-        if (Number.isFinite(v)) onCommit(v);
+        const v = parseNumericInput(e.target.value);
+        if (v !== null) onCommit(v);
       }}
       onBlur={() => setText(null)}
     />
@@ -373,8 +391,10 @@ function AmountCell({ value, onCommit }: { value: number; onCommit: (v: number) 
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         if (text != null) {
-          const v = parseFloat(text.replace(/[$,]/g, ""));
-          onCommit(Number.isFinite(v) ? v : 0);
+          // Unreadable input keeps the previous amount. Committing 0 here once
+          // turned a "$12 000" switchgear quote into $12 with no indication.
+          const v = parseNumericInput(text);
+          if (v !== null) onCommit(v);
         }
         setText(null);
       }}

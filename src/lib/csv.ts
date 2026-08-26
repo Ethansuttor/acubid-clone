@@ -7,8 +7,14 @@
 
 import type { Assembly, AssemblyItem, Item } from "./types";
 
+export interface ParsedCsv {
+  rows: string[][];
+  /** True when a quoted field was never closed — the tail of the file is lost. */
+  unterminatedQuote: boolean;
+}
+
 /** RFC4180-style parser: quoted fields, "" escapes, CR/LF inside quotes. */
-export function parseCsv(text: string): string[][] {
+export function parseCsv(text: string): ParsedCsv {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -70,7 +76,7 @@ export function parseCsv(text: string): string[][] {
     i += 1;
   }
   if (field !== "" || row.length > 0) endRow();
-  return rows;
+  return { rows, unterminatedQuote: quoted };
 }
 
 export function toCsv(rows: (string | number)[][]): string {
@@ -123,26 +129,44 @@ function headerIndex(header: string[], required: readonly string[]): Map<string,
   return idx;
 }
 
+/**
+ * Parse a spreadsheet money/quantity cell. Thousands separators and $ are
+ * stripped, but a comma that is not in a thousands position is left alone so
+ * a European decimal like "3,5" fails loudly instead of importing as 35.
+ */
 function num(raw: string): number | null {
-  const cleaned = (raw ?? "").replace(/[$,\s]/g, "");
+  const cleaned = (raw ?? "")
+    .replace(/[$\s]/g, "")
+    .replace(/,(?=\d{3}(\D|$))/g, "");
   if (cleaned === "") return 0;
   const v = Number(cleaned);
   return Number.isFinite(v) ? v : null;
 }
 
 export function parseItemsCsv(text: string): ImportResult<ImportedItem> {
-  const table = parseCsv(text);
+  const { rows: table, unterminatedQuote } = parseCsv(text);
   if (table.length === 0) return { rows: [], errors: ["File is empty"] };
   const idx = headerIndex(table[0], ITEM_HEADERS);
   if (typeof idx === "string") return { rows: [], errors: [idx] };
 
   const rows: ImportedItem[] = [];
   const errors: string[] = [];
+  if (unterminatedQuote) {
+    errors.push(
+      "A quoted field is never closed — everything after it was read as one cell. Fix the quotes and re-import."
+    );
+  }
   const seen = new Set<string>();
   for (let r = 1; r < table.length; r++) {
     const line = r + 1;
     const cells = table[r];
     if (cells.every((c) => c.trim() === "")) continue;
+    if (cells.length < table[0].length) {
+      errors.push(
+        `Line ${line}: only ${cells.length} of ${table[0].length} columns — a short row would import at $0`
+      );
+      continue;
+    }
     const get = (k: string) => (cells[idx.get(k)!] ?? "").trim();
 
     const description = get("description");
@@ -249,13 +273,18 @@ export interface ImportedAssemblyRow {
 }
 
 export function parseAssembliesCsv(text: string): ImportResult<ImportedAssemblyRow> {
-  const table = parseCsv(text);
+  const { rows: table, unterminatedQuote } = parseCsv(text);
   if (table.length === 0) return { rows: [], errors: ["File is empty"] };
   const idx = headerIndex(table[0], ASSEMBLY_HEADERS);
   if (typeof idx === "string") return { rows: [], errors: [idx] };
 
   const rows: ImportedAssemblyRow[] = [];
   const errors: string[] = [];
+  if (unterminatedQuote) {
+    errors.push(
+      "A quoted field is never closed — everything after it was read as one cell. Fix the quotes and re-import."
+    );
+  }
   for (let r = 1; r < table.length; r++) {
     const line = r + 1;
     const cells = table[r];
@@ -274,6 +303,10 @@ export function parseAssembliesCsv(text: string): ImportResult<ImportedAssemblyR
       errors.push(`Line ${line}: quantity "${qtyRaw}" is not a number`);
       continue;
     }
+    if (quantity < 0) {
+      errors.push(`Line ${line}: quantity cannot be negative`);
+      continue;
+    }
     rows.push({
       assemblyCode,
       assemblyName: get("assembly_name") || assemblyCode,
@@ -289,6 +322,17 @@ export interface AssemblyMerge {
   components: AssemblyItem[];
   /** Assembly codes whose component rows referenced an unknown item code. */
   errors: string[];
+  /**
+   * Assembly ids the file actually listed components for. Assemblies named
+   * only by a component-less row are renames, and their existing component
+   * list must be left alone rather than emptied.
+   */
+  touched: Set<string>;
+  /**
+   * Assembly ids with at least one unresolved component. Persisting a partial
+   * list would replace a good assembly with a short one, so callers skip these.
+   */
+  incomplete: Set<string>;
   added: number;
   updated: number;
 }
@@ -317,6 +361,8 @@ export function mergeAssemblies(
   const components: AssemblyItem[] = [];
   const errors: string[] = [];
   const resolved = new Map<string, Assembly>();
+  const touched = new Set<string>();
+  const incomplete = new Set<string>();
   let added = 0;
   let updated = 0;
 
@@ -340,10 +386,12 @@ export function mergeAssemblies(
       assemblies.push(assembly);
     }
     if (row.itemCode === "") continue;
+    touched.add(assembly.id);
     const item = itemByCode.get(row.itemCode.toLowerCase());
     if (!item) {
+      incomplete.add(assembly.id);
       errors.push(
-        `Assembly "${row.assemblyCode}": item code "${row.itemCode}" is not in the item database — import the items first`
+        `Assembly "${row.assemblyCode}": item code "${row.itemCode}" is not in the item database — this assembly was left unchanged, import the items first`
       );
       continue;
     }
@@ -355,5 +403,5 @@ export function mergeAssemblies(
       quantity: row.quantity,
     });
   }
-  return { assemblies, components, errors, added, updated };
+  return { assemblies, components, errors, touched, incomplete, added, updated };
 }

@@ -15,9 +15,18 @@ export const maxDuration = 300;
 const MAX_TILES = 40;
 const CONCURRENCY = 4;
 
+/** Largest request body accepted, in bytes. Each tile is a base64 image. */
+const MAX_BODY_BYTES = 48 * 1024 * 1024;
+
 async function authorize(req: NextRequest): Promise<boolean> {
-  // Local mode is an explicitly offline dev/test configuration.
-  if (process.env.NEXT_PUBLIC_LOCAL_MODE === "1") return true;
+  // Local mode is an offline dev/test configuration. Guarding on NODE_ENV too
+  // means a stray env var in a deployment cannot disable auth on this route.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.NEXT_PUBLIC_LOCAL_MODE === "1"
+  ) {
+    return true;
+  }
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return false;
   const db = createClient(
@@ -41,9 +50,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES) {
+    return NextResponse.json(
+      { error: `Request too large (${Math.round(declared / 1e6)} MB). Reduce the render scale or work sheet by sheet.` },
+      { status: 413 }
+    );
+  }
+
+  let raw: string;
+  try {
+    raw = await req.text();
+  } catch {
+    return NextResponse.json({ error: "Could not read request body" }, { status: 400 });
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "Request too large" }, { status: 413 });
+  }
+
   let body: DetectRequest;
   try {
-    body = (await req.json()) as DetectRequest;
+    body = JSON.parse(raw) as DetectRequest;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
