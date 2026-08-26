@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx playwright test*)",
+      "Bash(npm test*)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(npx vitest run*)",
+      "Bash(npm run lint*)",
+      "Bash(npm audit)",
+      "Bash(npm audit --*)",
+      "Bash(npm ls *)",
+      "mcp__Supabase__get_project"
+    ]
+  }
+}
