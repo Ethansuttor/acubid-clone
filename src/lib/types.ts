@@ -12,9 +12,39 @@ export interface Project {
   labor_rate: number;
   overhead_pct: number;
   profit_pct: number;
+  /** Material waste/loss allowance, percent of extended material. */
+  waste_pct: number;
+  /** Sales tax, percent of material after waste. */
+  tax_pct: number;
+  /** Labor productivity adjustment, percent. +15 = conditions cost 15% more hours. */
+  labor_factor_pct: number;
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * A cost that does not come from takeoff: gear quotes, lighting packages,
+ * subcontractors, permits, equipment rental, bonds. `ohp_applies` decides
+ * whether overhead and profit are charged on it or it is carried at cost.
+ */
+export interface DirectCost {
+  id: string;
+  project_id: string;
+  user_id: string;
+  description: string;
+  category: DirectCostCategory;
+  amount: number;
+  ohp_applies: boolean;
+  sort_order: number;
+}
+
+export type DirectCostCategory =
+  | "quote"
+  | "subcontractor"
+  | "equipment"
+  | "permit"
+  | "bond"
+  | "other";
 
 export interface PlanDocument {
   id: string;
@@ -78,6 +108,8 @@ export interface Layer {
   item_id: string | null;
   assembly_id: string | null;
   rise_drop_ft: number;
+  /** Repeat factor: take off one typical floor, apply it to N identical ones. */
+  typical_multiplier: number;
   sort_order: number;
 }
 

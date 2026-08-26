@@ -52,6 +52,7 @@
 import type {
   Assembly,
   AssemblyItem,
+  DirectCost,
   Item,
   Layer,
   Sheet,
@@ -110,6 +111,7 @@ function layer(id: string, name: string, tool: Layer["tool"], link: Partial<Laye
     item_id: null,
     assembly_id: null,
     rise_drop_ft: 0,
+    typical_multiplier: 1,
     sort_order: 0,
     ...link,
   };
@@ -165,4 +167,14 @@ export const takeoffs: Takeoff[] = [
   linear("l-emt", [[0, 0], [400, 0], [400, 150]]),
 ];
 
-export const summaryInputs = { laborRate: 95, overheadPct: 12, profitPct: 10 };
+// Baseline markups: no waste, tax, labor factor, or direct costs, so the
+// hand-calculated figures above are the pure takeoff extension.
+export const summaryInputs = {
+  laborRate: 95,
+  overheadPct: 12,
+  profitPct: 10,
+  wastePct: 0,
+  taxPct: 0,
+  laborFactorPct: 0,
+  directCosts: [] as DirectCost[],
+};

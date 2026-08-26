@@ -45,3 +45,19 @@ export function fmtQty(n: number): string {
     ? n.toLocaleString("en-US")
     : n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
+
+/**
+ * Parse a number typed into a money or percent field. Accepts "$1,250.00",
+ * "1 250" and "12.5"; returns null for anything it cannot read so callers can
+ * keep the previous value instead of silently committing 0. A comma that is
+ * not a thousands separator (a European decimal like "3,5") is not stripped,
+ * so it fails here rather than importing as 35.
+ */
+export function parseNumericInput(text: string): number | null {
+  const cleaned = (text ?? "")
+    .replace(/[$\s]/g, "")
+    .replace(/,(?=\d{3}(\D|$))/g, "");
+  if (cleaned === "") return 0;
+  const v = Number(cleaned);
+  return Number.isFinite(v) ? v : null;
+}

@@ -10,6 +10,7 @@ import type {
   Assembly,
   AssemblyItem,
   Calibration,
+  DirectCost,
   Item,
   Layer,
   PlanDocument,
@@ -42,6 +43,7 @@ interface WorkspaceState {
   items: Item[];
   assemblies: Assembly[];
   assemblyItems: AssemblyItem[];
+  directCosts: DirectCost[];
 
   activeSheetId: string | null;
   activeLayerId: string | null;
@@ -77,6 +79,8 @@ interface WorkspaceState {
   upsertAssembly(a: Assembly): void;
   deleteAssembly(id: string): void;
   setAssemblyItems(assemblyId: string, rows: AssemblyItem[]): void;
+  upsertDirectCost(cost: DirectCost): void;
+  deleteDirectCost(id: string): void;
 }
 
 // All persistence writes run through a single FIFO queue so that rapid
@@ -165,6 +169,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     items: [],
     assemblies: [],
     assemblyItems: [],
+    directCosts: [],
     activeSheetId: null,
     activeLayerId: null,
     tool: "select",
@@ -178,8 +183,17 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       const db = supabase();
       const { data: auth } = await db.auth.getUser();
       const userId = auth.user?.id ?? null;
-      const [project, documents, sheets, layers, takeoffs, items, assemblies, assemblyItems] =
-        await Promise.all([
+      const [
+        project,
+        documents,
+        sheets,
+        layers,
+        takeoffs,
+        items,
+        assemblies,
+        assemblyItems,
+        directCosts,
+      ] = await Promise.all([
           db.from("projects").select("*").eq("id", projectId).single(),
           db.from("documents").select("*").eq("project_id", projectId).order("created_at"),
           db.from("sheets").select("*").eq("project_id", projectId).order("page_number"),
@@ -188,6 +202,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           db.from("items").select("*").order("code"),
           db.from("assemblies").select("*").order("code"),
           db.from("assembly_items").select("*"),
+          // Tolerate a project database that predates migration 0002.
+          db
+            .from("direct_costs")
+            .select("*")
+            .eq("project_id", projectId)
+            .order("sort_order")
+            .then((r) => (r.error ? { data: [] } : r)),
         ]);
       set(() => ({
         loaded: true,
@@ -200,6 +221,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         items: (items.data as Item[]) ?? [],
         assemblies: (assemblies.data as Assembly[]) ?? [],
         assemblyItems: (assemblyItems.data as AssemblyItem[]) ?? [],
+        directCosts: (directCosts.data as DirectCost[]) ?? [],
         activeSheetId: (sheets.data?.[0] as Sheet | undefined)?.id ?? null,
         activeLayerId: (layers.data?.[0] as Layer | undefined)?.id ?? null,
         undoStack: [],
@@ -323,6 +345,22 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       }));
       track(set, supabase().from("assemblies").delete().eq("id", id));
     },
+    upsertDirectCost: (cost) => {
+      set((s) => {
+        const exists = s.directCosts.some((c) => c.id === cost.id);
+        return {
+          directCosts: exists
+            ? s.directCosts.map((c) => (c.id === cost.id ? cost : c))
+            : [...s.directCosts, cost],
+        };
+      });
+      track(set, supabase().from("direct_costs").upsert(cost));
+    },
+    deleteDirectCost: (id) => {
+      set((s) => ({ directCosts: s.directCosts.filter((c) => c.id !== id) }));
+      track(set, supabase().from("direct_costs").delete().eq("id", id));
+    },
+
     // (window hook attached below the store definition)
     setAssemblyItems: (assemblyId, rows) => {
       set((s) => ({

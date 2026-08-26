@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { loadPdfFromData, primeDocumentCache } from "@/lib/pdf";
 import { useWorkspace } from "@/store/workspace";
+import SheetAnalysis from "./SheetAnalysis";
 import type { PlanDocument, Sheet } from "@/lib/types";
 
 export default function SheetsPanel() {
@@ -67,15 +68,18 @@ export default function SheetsPanel() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="titlebar flex items-center justify-between px-3 py-2">
+      <div className="titlebar flex items-center justify-between gap-1 px-3 py-2">
         <span>Sheets</span>
-        <button
-          className="btn !px-2 !py-0.5 text-xs"
-          disabled={uploading}
-          onClick={() => fileRef.current?.click()}
-        >
-          {uploading ? "Uploading…" : "+ PDF"}
-        </button>
+        <div className="flex gap-1">
+          <SheetAnalysis />
+          <button
+            className="btn !px-2 !py-0.5 text-xs"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? "…" : "+ PDF"}
+          </button>
+        </div>
       </div>
       <input
         ref={fileRef}

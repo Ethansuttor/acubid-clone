@@ -21,7 +21,7 @@ import {
 
 const quantities = layerQuantities(layers, takeoffs, [sheet]);
 const byLayer = new Map(quantities.map((q) => [q.layer.id, q]));
-const lines = extendEstimate(quantities, items, assemblies, assemblyItems);
+const { lines, issues } = extendEstimate(quantities, items, assemblies, assemblyItems);
 
 describe("layer quantities from takeoff", () => {
   it("counts 8 receptacles — pending AI detections are excluded", () => {
@@ -88,21 +88,18 @@ describe("rollup and totals", () => {
   });
 
   it("material $566.16, labor 13.528 hr", () => {
-    const { materialTotal, laborHoursTotal } = estimateTotals(lines);
-    expect(materialTotal).toBeCloseTo(566.16, 8);
-    expect(laborHoursTotal).toBeCloseTo(13.528, 8);
+    const { materialBase, laborHoursBase } = estimateTotals(lines);
+    expect(materialBase).toBeCloseTo(566.16, 8);
+    expect(laborHoursBase).toBeCloseTo(13.528, 8);
+  });
+
+  it("the fully-linked fixture reports no estimate issues", () => {
+    expect(issues).toEqual([]);
   });
 });
 
 describe("bid summary ($95/hr, 12% OH, 10% profit)", () => {
-  const { materialTotal, laborHoursTotal } = estimateTotals(lines);
-  const s = summarize({
-    materialTotal,
-    laborHoursTotal,
-    laborRate: summaryInputs.laborRate,
-    overheadPct: summaryInputs.overheadPct,
-    profitPct: summaryInputs.profitPct,
-  });
+  const s = summarize({ ...estimateTotals(lines), ...summaryInputs });
 
   it("labor cost 13.528 x 95 = $1285.16", () => {
     expect(s.laborCost).toBeCloseTo(1285.16, 8);
@@ -133,8 +130,14 @@ describe("guard rails", () => {
   });
 
   it("unlinked layers produce no estimate lines", () => {
-    const unlinked = [{ ...layers[0], id: "l-x", item_id: null, assembly_id: null }];
+    // keep the layer id so its 8 takeoffs still count, but strip the link
+    const unlinked = [{ ...layers[0], item_id: null, assembly_id: null }];
     const q = layerQuantities(unlinked, takeoffs, [sheet]);
-    expect(extendEstimate(q, items, assemblies, assemblyItems)).toHaveLength(0);
+    const r = extendEstimate(q, items, assemblies, assemblyItems);
+    expect(r.lines).toHaveLength(0);
+    // ...and the dropped quantity is reported, never silently discarded
+    expect(r.issues).toHaveLength(1);
+    expect(r.issues[0].kind).toBe("unlinked");
+    expect(r.issues[0].quantity).toBe(8);
   });
 });
