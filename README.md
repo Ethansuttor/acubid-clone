@@ -26,14 +26,17 @@ Anthropic API key on the server side; everything else works without it.
 
 ### Database migrations
 
-Both files in `supabase/migrations/` must be applied to the Supabase project
-before first use — run them in order in the SQL editor, or with the Supabase
-CLI. `0002_bid_math.sql` is **required**, not optional: the app writes
-`waste_pct` / `tax_pct` / `labor_factor_pct` on projects and
+Both files in `supabase/migrations/` are already applied to the `volt-takeoff`
+project. For any other database, run them in order in the SQL editor or with
+the Supabase CLI — `0002_bid_math.sql` is **required**, not optional: the app
+writes `waste_pct` / `tax_pct` / `labor_factor_pct` on projects and
 `typical_multiplier` on layers, so creating a project against a database that
 only has `0001` will fail. (Reading direct costs is the one thing that
 degrades quietly, so an un-migrated database shows an empty cost list rather
 than erroring.)
+
+Supabase pauses free-tier projects after a stretch of inactivity; restore it
+from the dashboard if sign-in starts failing.
 
 **Local mode** (`NEXT_PUBLIC_LOCAL_MODE=1 npm run dev`) replaces Supabase
 with a localStorage-backed store — used for offline dev and for the E2E
