@@ -38,7 +38,9 @@ than erroring.)
 **Local mode** (`NEXT_PUBLIC_LOCAL_MODE=1 npm run dev`) replaces Supabase
 with a localStorage-backed store — used for offline dev and for the E2E
 tests in sandboxes without network access to Supabase. Any email/password
-signs in. Production runs against real Supabase.
+signs in. It is development-only by design: the AI routes only honour the
+local-mode auth bypass when `NODE_ENV !== "production"`, so setting the
+variable on a deployment cannot switch authentication off.
 
 ## Workflow
 
