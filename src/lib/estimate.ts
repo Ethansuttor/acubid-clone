@@ -88,6 +88,16 @@ export interface EstimateSummaryInput {
   wastePct: number;
   taxPct: number;
   laborFactorPct: number;
+  /** Payroll tax, insurance and fringes, percent of labor cost. */
+  laborBurdenPct: number;
+  /** Small tools and consumables, percent of labor cost. */
+  smallToolsPct: number;
+  /** Material price movement to buyout, percent of the material total. */
+  escalationPct: number;
+  /** Cost buffer, percent of prime cost. Marked up like any other cost. */
+  contingencyPct: number;
+  /** Bond premium, percent of the bid price — which includes the bond. */
+  bondPct: number;
   overheadPct: number;
   profitPct: number;
   directCosts: DirectCost[];
@@ -99,17 +109,49 @@ export interface EstimateSummary extends EstimateSummaryInput {
   salesTax: number;
   /** Material carried into the bid: base + waste + tax. */
   materialTotal: number;
+  /** Material escalation to buyout, on the material total. */
+  escalation: number;
   laborFactorHours: number;
   /** Labor hours carried into the bid: base + factor adjustment. */
   laborHoursTotal: number;
+  /** Bare labor: hours x rate, before burden and consumables. */
   laborCost: number;
+  laborBurden: number;
+  smallTools: number;
+  /** Labor carried into prime cost: bare labor + burden + small tools. */
+  laborTotal: number;
+  /** O&P-applicable direct costs before sales tax. */
+  directCostsWithOhpBase: number;
+  /** Sales tax on the taxable O&P-applicable direct costs. */
+  directCostsWithOhpTax: number;
+  /** O&P-applicable direct costs carried into prime cost, tax included. */
   directCostsWithOhp: number;
+  /** At-cost direct costs before sales tax. */
+  directCostsAtCostBase: number;
+  /** Sales tax on the taxable at-cost direct costs. */
+  directCostsAtCostTax: number;
+  /** At-cost direct costs added after profit, tax included. */
   directCostsAtCost: number;
+  /** Sales tax charged on direct costs, both buckets. */
+  directCostTax: number;
   primeCost: number;
+  contingency: number;
+  /** The base overhead is charged on: prime cost + contingency. */
+  costWithContingency: number;
   overhead: number;
   subtotal: number;
   profit: number;
+  /** Bid price before the bond premium is added. */
+  priceBeforeBond: number;
+  /** Bond premium: bondPct% of the final bid price, which includes it. */
+  bond: number;
   bidPrice: number;
+  /**
+   * Things about the bid inputs a reviewer must see. Not `EstimateIssue`s —
+   * those are about takeoff quantity that could not be priced. These are
+   * about the markups themselves.
+   */
+  warnings: string[];
 }
 
 /** Only confirmed takeoffs count toward the estimate — never pending AI hits. */
@@ -332,17 +374,34 @@ export function estimateTotals(lines: EstimateLine[]): {
 }
 
 /**
- * Bid summary:
- *   waste        = materialBase * wastePct%
+ * Bid summary. Order of operations — see `.ai/05-decisions.md` before changing:
+ *
+ *   waste        = materialBase * wastePct%          (you buy the waste)
  *   salesTax     = (materialBase + waste) * taxPct%
  *   materialTotal= materialBase + waste + salesTax
+ *   escalation   = materialTotal * escalationPct%    (material price to buyout)
+ *
  *   laborHours   = laborHoursBase * (1 + laborFactorPct%)
- *   laborCost    = laborHours * laborRate
- *   primeCost    = materialTotal + laborCost + direct costs marked O&P-applies
- *   overhead     = primeCost * overheadPct%
- *   subtotal     = primeCost + overhead
+ *   laborCost    = laborHours * laborRate            (bare labor)
+ *   laborBurden  = laborCost * laborBurdenPct%       (payroll tax, ins., fringe)
+ *   smallTools   = laborCost * smallToolsPct%        (consumables)
+ *   laborTotal   = laborCost + laborBurden + smallTools
+ *
+ *   direct costs are split by ohp_applies, and each bucket carries sales tax
+ *   on the rows flagged `taxable` — a gear quote is normally quoted pre-tax.
+ *
+ *   primeCost    = materialTotal + escalation + laborTotal + directCostsWithOhp
+ *   contingency  = primeCost * contingencyPct%       (a cost, so it is marked up)
+ *   overhead     = (primeCost + contingency) * overheadPct%
+ *   subtotal     = primeCost + contingency + overhead
  *   profit       = subtotal * profitPct%
- *   bidPrice     = subtotal + profit + direct costs carried at cost
+ *   priceBeforeBond = subtotal + profit + directCostsAtCost
+ *   bond         = bondPct% OF THE BID PRICE, which includes the bond:
+ *                  bidPrice = priceBeforeBond / (1 - bondPct/100)
+ *   bidPrice     = priceBeforeBond + bond
+ *
+ * Burden, small tools, escalation, contingency and bond are all zero by
+ * default, and at zero every figure above reduces to the original bid.
  */
 export function summarize(raw: EstimateSummaryInput): EstimateSummary {
   // A project row written before the bid-math columns existed yields undefined
@@ -356,31 +415,82 @@ export function summarize(raw: EstimateSummaryInput): EstimateSummary {
     wastePct: n(raw.wastePct),
     taxPct: n(raw.taxPct),
     laborFactorPct: n(raw.laborFactorPct),
+    laborBurdenPct: n(raw.laborBurdenPct),
+    smallToolsPct: n(raw.smallToolsPct),
+    escalationPct: n(raw.escalationPct),
+    contingencyPct: n(raw.contingencyPct),
+    bondPct: n(raw.bondPct),
     overheadPct: n(raw.overheadPct),
     profitPct: n(raw.profitPct),
   };
+  const warnings: string[] = [];
+
   const wasteAmount = input.materialBase * (input.wastePct / 100);
   const materialAfterWaste = input.materialBase + wasteAmount;
   const salesTax = materialAfterWaste * (input.taxPct / 100);
   const materialTotal = materialAfterWaste + salesTax;
+  const escalation = materialTotal * (input.escalationPct / 100);
 
   const laborFactorHours = input.laborHoursBase * (input.laborFactorPct / 100);
   const laborHoursTotal = input.laborHoursBase + laborFactorHours;
   const laborCost = laborHoursTotal * input.laborRate;
+  const laborBurden = laborCost * (input.laborBurdenPct / 100);
+  const smallTools = laborCost * (input.smallToolsPct / 100);
+  const laborTotal = laborCost + laborBurden + smallTools;
 
-  let directCostsWithOhp = 0;
-  let directCostsAtCost = 0;
+  let directCostsWithOhpBase = 0;
+  let directCostsWithOhpTax = 0;
+  let directCostsAtCostBase = 0;
+  let directCostsAtCostTax = 0;
+  let hasBondCost = false;
   for (const dc of input.directCosts) {
     const amount = Number(dc.amount) || 0;
-    if (dc.ohp_applies) directCostsWithOhp += amount;
-    else directCostsAtCost += amount;
+    // Tax follows the amount into whichever bucket the amount lands in, so a
+    // taxable quote is marked up or carried at cost consistently with it.
+    const tax = dc.taxable ? amount * (input.taxPct / 100) : 0;
+    if (dc.ohp_applies) {
+      directCostsWithOhpBase += amount;
+      directCostsWithOhpTax += tax;
+    } else {
+      directCostsAtCostBase += amount;
+      directCostsAtCostTax += tax;
+    }
+    if (dc.category === "bond" && amount !== 0) hasBondCost = true;
   }
+  const directCostsWithOhp = directCostsWithOhpBase + directCostsWithOhpTax;
+  const directCostsAtCost = directCostsAtCostBase + directCostsAtCostTax;
+  const directCostTax = directCostsWithOhpTax + directCostsAtCostTax;
 
-  const primeCost = materialTotal + laborCost + directCostsWithOhp;
-  const overhead = primeCost * (input.overheadPct / 100);
-  const subtotal = primeCost + overhead;
+  const primeCost = materialTotal + escalation + laborTotal + directCostsWithOhp;
+  const contingency = primeCost * (input.contingencyPct / 100);
+  const costWithContingency = primeCost + contingency;
+  const overhead = costWithContingency * (input.overheadPct / 100);
+  const subtotal = costWithContingency + overhead;
   const profit = subtotal * (input.profitPct / 100);
-  const bidPrice = subtotal + profit + directCostsAtCost;
+  const priceBeforeBond = subtotal + profit + directCostsAtCost;
+
+  // A bond premium is quoted as a percentage of the contract value, and the
+  // bond is part of that value, so the calculation is circular:
+  //   bid = priceBeforeBond + bond,  bond = bid * p  =>  bid = priceBeforeBond / (1 - p)
+  // Outside 0 <= p < 1 that division is meaningless (at p = 1 the bond eats
+  // the whole bid). Refuse rather than emit a plausible number, and say so.
+  let bond = 0;
+  if (input.bondPct < 0 || input.bondPct >= 100) {
+    warnings.push(
+      `Bond rate ${input.bondPct}% is not a usable percentage of the bid price — ` +
+        `no bond has been added to this bid. Enter a rate between 0 and 100.`
+    );
+  } else if (input.bondPct > 0) {
+    const p = input.bondPct / 100;
+    bond = (priceBeforeBond * p) / (1 - p);
+    if (hasBondCost) {
+      warnings.push(
+        `A bond is priced twice: ${input.bondPct}% of the bid price AND a direct ` +
+          `cost in the "bond" category. Remove one or the bid carries both.`
+      );
+    }
+  }
+  const bidPrice = priceBeforeBond + bond;
 
   return {
     ...input,
@@ -388,16 +498,30 @@ export function summarize(raw: EstimateSummaryInput): EstimateSummary {
     materialAfterWaste,
     salesTax,
     materialTotal,
+    escalation,
     laborFactorHours,
     laborHoursTotal,
     laborCost,
+    laborBurden,
+    smallTools,
+    laborTotal,
+    directCostsWithOhpBase,
+    directCostsWithOhpTax,
     directCostsWithOhp,
+    directCostsAtCostBase,
+    directCostsAtCostTax,
     directCostsAtCost,
+    directCostTax,
     primeCost,
+    contingency,
+    costWithContingency,
     overhead,
     subtotal,
     profit,
+    priceBeforeBond,
+    bond,
     bidPrice,
+    warnings,
   };
 }
 

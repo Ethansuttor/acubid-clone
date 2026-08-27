@@ -24,11 +24,19 @@ for the Anthropic key. **No real Anthropic key has ever been committed.**
 
 - Project **`volt-takeoff`**, ref `ulswnsdyxfrwvznyraqy`, region `us-east-1`,
   org `Ethansuttor's Org`.
-- Both migrations are **applied and verified** against it. The columns
-  `waste_pct` / `tax_pct` / `labor_factor_pct` on `projects`,
+- Migrations `0001` and `0002` are **applied and verified** against it. The
+  columns `waste_pct` / `tax_pct` / `labor_factor_pct` on `projects`,
   `typical_multiplier` on `layers`, and the `direct_costs` table with its RLS
   policy all exist. The app's exact insert shapes were tested against the live
   database and accepted.
+- **`0003_bid_math_burden_bond.sql` is NOT yet applied.** It adds
+  `labor_burden_pct` / `small_tools_pct` / `escalation_pct` /
+  `contingency_pct` / `bond_pct` to `projects` and `taxable` to
+  `direct_costs`. Project creation writes all five of the new project columns,
+  so **creating a project against the live database will fail until it is
+  applied**. Everything is additive with `default 0` / `default false`, so
+  existing rows need no backfill. Local mode is unaffected (the localStorage
+  stand-in has no schema).
 - Sign-in user: `ethan.suttor@gmail.com`, temporary password
   **`volt-takeoff-2026`** — the owner should change this.
 - Free-tier projects **auto-pause after inactivity**. If sign-in starts
@@ -73,6 +81,5 @@ pdfjs-dist 4.10 · ExcelJS 4.4 · `@anthropic-ai/sdk` · Vitest 4 · Playwright.
 
 ## Repository
 
-`Ethansuttor/acubid-clone`, branch
-`claude/electrical-estimating-takeoff-mbpfi3`, tracked by **PR #1**.
-Push to that branch; it updates the PR.
+`Ethansuttor/acubid-clone`. Work since PR #2 merged is on
+`claude/markdown-files-review-ad60sv`.

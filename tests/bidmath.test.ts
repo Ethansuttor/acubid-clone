@@ -51,6 +51,7 @@ function cost(id: string, amount: number, ohp_applies: boolean): DirectCost {
     category: "quote",
     amount,
     ohp_applies,
+    taxable: false,
     sort_order: 0,
   };
 }
@@ -58,12 +59,10 @@ function cost(id: string, amount: number, ohp_applies: boolean): DirectCost {
 describe("bid summary with waste, tax, labor factor and direct costs", () => {
   const s = summarize({
     ...totals,
-    laborRate: 95,
+    ...summaryInputs,
     wastePct: 5,
     taxPct: 8.25,
     laborFactorPct: 15,
-    overheadPct: 12,
-    profitPct: 10,
     directCosts: [cost("switchgear", 12000, true), cost("permit", 850, false)],
   });
 
@@ -100,12 +99,10 @@ describe("bid summary with waste, tax, labor factor and direct costs", () => {
     // proof they are not marked up: the same amount marked O&P-applies bids higher
     const marked = summarize({
       ...totals,
-      laborRate: 95,
+      ...summaryInputs,
       wastePct: 5,
       taxPct: 8.25,
       laborFactorPct: 15,
-      overheadPct: 12,
-      profitPct: 10,
       directCosts: [cost("switchgear", 12000, true), cost("permit", 850, true)],
     });
     // 850 inside prime picks up 12% OH then 10% profit: 850 x 1.12 x 1.10 = 1047.20
@@ -283,14 +280,20 @@ describe("deleting from the database is warned, not silent", () => {
 describe("summarize tolerates malformed inputs", () => {
   it("treats undefined percentages as zero instead of rendering NaN", () => {
     // A project row from a database predating the bid-math columns
+    const undef = undefined as unknown as number;
     const legacy = summarize({
       ...totals,
       laborRate: 95,
       overheadPct: 12,
       profitPct: 10,
-      wastePct: undefined as unknown as number,
-      taxPct: undefined as unknown as number,
-      laborFactorPct: undefined as unknown as number,
+      wastePct: undef,
+      taxPct: undef,
+      laborFactorPct: undef,
+      laborBurdenPct: undef,
+      smallToolsPct: undef,
+      escalationPct: undef,
+      contingencyPct: undef,
+      bondPct: undef,
       directCosts: [],
     });
     expect(Number.isFinite(legacy.bidPrice)).toBe(true);

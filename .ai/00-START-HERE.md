@@ -19,15 +19,21 @@ that produces a quantity or a dollar.
 
 ## Current state (keep this accurate)
 
-- **Branch:** `claude/electrical-estimating-takeoff-mbpfi3`, tracked by PR #1
-  on `Ethansuttor/acubid-clone`.
-- **Tests:** 149 unit tests across 8 files, 7 Playwright E2E specs. All pass.
-  Build and lint are clean.
-- **Database:** Supabase project `volt-takeoff` (`ulswnsdyxfrwvznyraqy`),
-  `ACTIVE_HEALTHY`, both migrations applied and verified.
+- **Branch:** `claude/markdown-files-review-ad60sv` on
+  `Ethansuttor/acubid-clone`. PR #1 and PR #2 are merged.
+- **Tests:** 165 unit tests across 9 files, 8 Playwright E2E tests in 7 specs.
+  All pass. Typecheck, lint and production build are clean.
+- **Database:** Supabase project `volt-takeoff` (`ulswnsdyxfrwvznyraqy`).
+  Migrations `0001` and `0002` are applied and verified. **`0003` is written
+  but NOT applied** — project creation writes its columns, so applying it is
+  the next thing to do against the live database. See
+  [`08-environment.md`](08-environment.md).
 - **Working:** PDF takeoff (count/linear/area), per-sheet calibration,
-  item + assembly database with CSV round-trip, full bid math, Excel export,
-  AI symbol auto-count with a review queue, AI title-block reading.
+  item + assembly database with CSV round-trip, full bid math (waste, tax,
+  escalation, labor factor, burden, small tools, direct costs with per-row
+  tax, contingency, overhead, profit, and a bond solved as a share of the bid
+  price), Excel export, AI symbol auto-count with a review queue, AI
+  title-block reading.
 - **Not yet verified against reality:** both AI features have only ever run
   against mocked responses. There is no `ANTHROPIC_API_KEY` in the dev
   environment and no real plan set has been used. Detection accuracy and

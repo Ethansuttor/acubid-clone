@@ -29,6 +29,17 @@ was deleted still produces lines, just **short**. That is the plausible
 looking wrong number. If you add a new way for a layer to fail to price,
 add a matching issue kind.
 
+### 1b. A markup that could not be applied is never silent either
+
+`summarize()` returns `warnings: string[]` for problems with the bid inputs
+rather than the takeoff: a bond rate outside `0 <= p < 100` (no bond is added,
+because the circular solve has no answer) and a bond charged twice, once as a
+percentage and once as a `bond`-category direct cost. These render in the
+Summary tab and at the top of the Excel Summary sheet in red.
+
+Note this is why `bond_pct` has no database CHECK: a rejected write hides the
+bad rate instead of showing it. See [`05-decisions.md`](05-decisions.md).
+
 ## 2. Nothing an AI produces reaches the bid unreviewed
 
 - Auto-count detections are written with `status: "pending"` and

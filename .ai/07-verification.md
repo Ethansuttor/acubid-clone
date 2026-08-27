@@ -4,10 +4,10 @@ Run these before claiming anything works. Report what actually happened,
 including failures and their output.
 
 ```sh
-npm test                # 149 unit tests, 8 files  (~1s)
+npm test                # 165 unit tests, 9 files  (~1s)
 npx tsc --noEmit        # typecheck
 npm run lint            # eslint flat config
-npx playwright test     # 7 E2E specs             (~30s)
+npx playwright test     # 8 E2E tests in 7 specs  (~31s)
 npx next build          # production build
 ```
 
@@ -44,6 +44,15 @@ Expected:
 
 With waste 5%, tax 8.25%, labor factor +15%, a $12,000 quote (O&P applies)
 and an $850 permit (at cost): **bid $18,247.62099152**.
+
+Adding every remaining markup on top of that — escalation 3% of the material
+total, labor burden 32% and small tools 2% of labor cost, contingency 5% of
+prime cost, the $12,000 quote flagged taxable, and a bond at 1.2% of the bid
+price — gives **bid $21,329.11971991182** (bond $255.94943663894). The full
+line-by-line hand math is in the header of `tests/bidmath-markups.test.ts`.
+
+Every one of those terms is zero by default, and at zero the figures above are
+unchanged — `tests/bidmath-markups.test.ts` asserts that too.
 
 ## Rules for changing the math
 

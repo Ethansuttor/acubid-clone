@@ -71,6 +71,11 @@ export function buildWorkbook(data: {
     wastePct: project.waste_pct ?? 0,
     taxPct: project.tax_pct ?? 0,
     laborFactorPct: project.labor_factor_pct ?? 0,
+    laborBurdenPct: project.labor_burden_pct ?? 0,
+    smallToolsPct: project.small_tools_pct ?? 0,
+    escalationPct: project.escalation_pct ?? 0,
+    contingencyPct: project.contingency_pct ?? 0,
+    bondPct: project.bond_pct ?? 0,
     overheadPct: project.overhead_pct,
     profitPct: project.profit_pct,
     directCosts,
@@ -192,12 +197,12 @@ export function buildWorkbook(data: {
 
   // An exported bid that is quietly missing quantity is worse than no export.
   const issueRows: number[] = [];
-  let missingHeaderRow = 0;
+  const alarmHeaderRows: number[] = [];
   const missing = issues.filter((i) => i.severity === "missing");
   const warnings = issues.filter((i) => i.severity === "warning");
   if (missing.length > 0) {
     rows.push(["!! QUANTITY MISSING FROM THIS BID", ""]);
-    missingHeaderRow = rows.length;
+    alarmHeaderRows.push(rows.length);
     for (const iss of missing) {
       const qty = iss.quantity > 0 ? ` (${money(iss.quantity)})` : "";
       rows.push([`   ${iss.layerName}${qty}: ${iss.detail}`, ""]);
@@ -212,24 +217,42 @@ export function buildWorkbook(data: {
     }
     rows.push(["", ""]);
   }
+  // Markup inputs that could not be applied as entered — a refused bond rate,
+  // a bond charged twice. Same rule as missing quantity: never silent.
+  if (summary.warnings.length > 0) {
+    rows.push(["!! CHECK THE BID INPUTS", ""]);
+    alarmHeaderRows.push(rows.length);
+    for (const w of summary.warnings) {
+      rows.push([`   ${w}`, ""]);
+      issueRows.push(rows.length);
+    }
+    rows.push(["", ""]);
+  }
 
   rows.push(
     ["Material from takeoff ($)", money(summary.materialBase)],
     [`Waste (${summary.wastePct}%)`, money(summary.wasteAmount)],
     [`Sales tax (${summary.taxPct}%)`, money(summary.salesTax)],
     ["Material total ($)", money(summary.materialTotal)],
+    [`Escalation (${summary.escalationPct}% of material total)`, money(summary.escalation)],
     ["Labor hours from takeoff", money(summary.laborHoursBase)],
     [`Labor factor (${summary.laborFactorPct}%)`, money(summary.laborFactorHours)],
     ["Labor hours total", money(summary.laborHoursTotal)],
     ["Labor rate ($/hr)", summary.laborRate],
-    ["Labor cost ($)", money(summary.laborCost)]
+    ["Labor cost ($)", money(summary.laborCost)],
+    [`Labor burden (${summary.laborBurdenPct}% of labor cost)`, money(summary.laborBurden)],
+    [`Small tools (${summary.smallToolsPct}% of labor cost)`, money(summary.smallTools)],
+    ["Labor total ($)", money(summary.laborTotal)]
   );
 
   if (directCosts.length > 0) {
     rows.push(["", ""], ["DIRECT JOB COSTS", ""]);
     for (const dc of directCosts) {
+      const flags = [dc.ohp_applies ? "" : "at cost", dc.taxable ? "taxable" : ""]
+        .filter(Boolean)
+        .join(", ");
       rows.push([
-        `   ${dc.description || "(unnamed)"} [${dc.category}${dc.ohp_applies ? "" : ", at cost"}]`,
+        `   ${dc.description || "(unnamed)"} [${dc.category}${flags ? ", " + flags : ""}]`,
         money(Number(dc.amount) || 0),
       ]);
     }
@@ -237,12 +260,22 @@ export function buildWorkbook(data: {
   }
 
   rows.push(
-    ["Direct costs with O&P ($)", money(summary.directCostsWithOhp)],
+    ["Direct costs with O&P ($)", money(summary.directCostsWithOhpBase)],
+    [
+      `Tax on taxable direct costs, with O&P (${summary.taxPct}%)`,
+      money(summary.directCostsWithOhpTax),
+    ],
     ["Prime cost ($)", money(summary.primeCost)],
+    [`Contingency (${summary.contingencyPct}% of prime cost)`, money(summary.contingency)],
     [`Overhead (${summary.overheadPct}%)`, money(summary.overhead)],
     ["Subtotal ($)", money(summary.subtotal)],
     [`Profit (${summary.profitPct}%)`, money(summary.profit)],
-    ["Direct costs at cost ($)", money(summary.directCostsAtCost)],
+    ["Direct costs at cost ($)", money(summary.directCostsAtCostBase)],
+    [
+      `Tax on taxable direct costs, at cost (${summary.taxPct}%)`,
+      money(summary.directCostsAtCostTax),
+    ],
+    [`Bond (${summary.bondPct}% of bid price)`, money(summary.bond)],
     ["BID PRICE ($)", money(summary.bidPrice)]
   );
 
@@ -251,8 +284,8 @@ export function buildWorkbook(data: {
   for (const r of issueRows) {
     sum.getRow(r).font = { bold: true, color: { argb: "FFC00000" } };
   }
-  if (missingHeaderRow > 0) {
-    sum.getRow(missingHeaderRow).font = { bold: true, size: 12, color: { argb: "FFC00000" } };
+  for (const r of alarmHeaderRows) {
+    sum.getRow(r).font = { bold: true, size: 12, color: { argb: "FFC00000" } };
   }
   const bidRow = sum.getRow(rows.length);
   bidRow.font = { bold: true, size: 12, color: { argb: "FFB97E17" } };

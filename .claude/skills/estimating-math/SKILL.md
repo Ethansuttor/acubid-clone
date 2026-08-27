@@ -47,16 +47,43 @@ material from takeoff
   + waste %                 (you buy the waste)
   + sales tax %             (on material AFTER waste)
   = material total
+  + escalation %            (of material total — price movement to buyout)
 labor hours from takeoff
   ± labor factor %          (adjusts HOURS, not the rate)
-  x labor rate              = labor cost
-+ direct costs flagged ohp_applies
+  x labor rate              = labor cost           (bare labor)
+  + labor burden %          (of labor cost — payroll tax, insurance, fringe)
+  + small tools %           (of labor cost — consumables)
+  = labor total
++ direct costs flagged ohp_applies, plus tax on the ones flagged taxable
   = prime cost
+  + contingency %           (of prime cost — a cost, so it is marked up)
   + overhead %              = subtotal
   + profit %
-+ direct costs flagged at-cost   (added after profit, never marked up)
++ direct costs flagged at-cost, plus their tax  (never marked up)
+  = price before bond
+  + bond %                  (of the BID PRICE, which includes the bond:
+                             bid = price before bond / (1 - bond%/100))
   = BID PRICE
 ```
+
+Every term added after the first three lines is **zero by default**, and at
+zero the chain reduces exactly to the original bid. Prove that with a test
+whenever you add another one.
+
+Percentages name their own base in the UI label ("Labor burden (% of labor
+cost)"), because the base is the part an estimator cannot infer from a number.
+
+## 4b. Never silently emit a markup you could not apply
+
+`summarize()` also returns `warnings: string[]` — problems with the *markup
+inputs* rather than with takeoff quantity. Today: a bond rate outside
+`0 <= p < 100` (the circular solve has no answer, so no bond is added), and a
+bond charged both as a percentage and as a `bond`-category direct cost.
+
+Same rule as quantity: it is rendered in the Summary tab and at the top of the
+Excel Summary sheet in red. There is deliberately **no CHECK constraint** on
+`bond_pct` — a rejected write would leave the bad rate on screen and drop the
+warning on reload. See `.ai/05-decisions.md`.
 
 ## 5. Never silently drop quantity
 
@@ -90,7 +117,7 @@ can produce.
 Read `.ai/07-verification.md` for the fixture's expected figures, then:
 
 ```sh
-npm test                # unit
+npm test                # 165 unit tests, 9 files
 npx playwright test     # E2E — proves it is wired up, not just correct
 ```
 

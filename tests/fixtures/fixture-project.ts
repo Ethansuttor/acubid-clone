@@ -167,8 +167,9 @@ export const takeoffs: Takeoff[] = [
   linear("l-emt", [[0, 0], [400, 0], [400, 150]]),
 ];
 
-// Baseline markups: no waste, tax, labor factor, or direct costs, so the
-// hand-calculated figures above are the pure takeoff extension.
+// Baseline markups: no waste, tax, labor factor, burden, small tools,
+// escalation, contingency, bond or direct costs, so the hand-calculated
+// figures above are the pure takeoff extension.
 export const summaryInputs = {
   laborRate: 95,
   overheadPct: 12,
@@ -176,5 +177,10 @@ export const summaryInputs = {
   wastePct: 0,
   taxPct: 0,
   laborFactorPct: 0,
+  laborBurdenPct: 0,
+  smallToolsPct: 0,
+  escalationPct: 0,
+  contingencyPct: 0,
+  bondPct: 0,
   directCosts: [] as DirectCost[],
 };

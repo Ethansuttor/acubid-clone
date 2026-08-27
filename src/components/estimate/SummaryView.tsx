@@ -1,7 +1,8 @@
 "use client";
 
-// Bid summary: takeoff extension plus waste, sales tax, labor factoring and
-// direct job costs, recalculating live, and the Excel export.
+// Bid summary: takeoff extension plus waste, sales tax, escalation, labor
+// factoring, burden and small tools, direct job costs with their own tax flag,
+// contingency, overhead, profit and bond — recalculating live, and the export.
 
 import { useState } from "react";
 import { useWorkspace } from "@/store/workspace";
@@ -43,6 +44,11 @@ export default function SummaryView() {
     wastePct: project.waste_pct,
     taxPct: project.tax_pct,
     laborFactorPct: project.labor_factor_pct,
+    laborBurdenPct: project.labor_burden_pct,
+    smallToolsPct: project.small_tools_pct,
+    escalationPct: project.escalation_pct,
+    contingencyPct: project.contingency_pct,
+    bondPct: project.bond_pct,
     overheadPct: project.overhead_pct,
     profitPct: project.profit_pct,
     directCosts: ws.directCosts,
@@ -75,6 +81,7 @@ export default function SummaryView() {
       category: "quote",
       amount: 0,
       ohp_applies: true,
+      taxable: false,
       sort_order: ws.directCosts.length,
     });
   }
@@ -91,6 +98,16 @@ export default function SummaryView() {
             — see the Estimate tab.
           </div>
         )}
+
+        {s.warnings.map((w) => (
+          <div
+            key={w}
+            data-testid="summary-warning"
+            className="panel mb-4 border-l-2 !border-l-[var(--color-danger)] px-4 py-2 text-xs text-[var(--color-danger)]"
+          >
+            {w}
+          </div>
+        ))}
 
         <div className="flex gap-6">
           <div className="panel w-72 shrink-0 self-start p-5">
@@ -122,6 +139,46 @@ export default function SummaryView() {
               hint="Job conditions: +15 costs 15% more hours"
               value={project.labor_factor_pct}
               onCommit={(v) => ws.updateProject({ labor_factor_pct: v })}
+            />
+            <Field
+              testId="labor-burden-pct"
+              label="Labor burden (%)"
+              percent
+              hint="Payroll tax, insurance, fringes — of labor cost"
+              value={project.labor_burden_pct}
+              onCommit={(v) => ws.updateProject({ labor_burden_pct: v })}
+            />
+            <Field
+              testId="small-tools-pct"
+              label="Small tools (%)"
+              percent
+              hint="Consumables, of labor cost. Typically 1–3"
+              value={project.small_tools_pct}
+              onCommit={(v) => ws.updateProject({ small_tools_pct: v })}
+            />
+            <Field
+              testId="escalation-pct"
+              label="Escalation (%)"
+              percent
+              hint="Material price to buyout, of material total"
+              value={project.escalation_pct}
+              onCommit={(v) => ws.updateProject({ escalation_pct: v })}
+            />
+            <Field
+              testId="contingency-pct"
+              label="Contingency (%)"
+              percent
+              hint="Of prime cost, before overhead"
+              value={project.contingency_pct}
+              onCommit={(v) => ws.updateProject({ contingency_pct: v })}
+            />
+            <Field
+              testId="bond-pct"
+              label="Bond (%)"
+              percent
+              hint="Of the bid price, which includes the bond"
+              value={project.bond_pct}
+              onCommit={(v) => ws.updateProject({ bond_pct: v })}
             />
             <Field
               testId="overhead-pct"
@@ -160,6 +217,12 @@ export default function SummaryView() {
                 <Row label={`Sales tax (${s.taxPct}%)`} value={`$${fmt(s.salesTax)}`} />
               )}
               <Row label="Material total" value={`$${fmt(s.materialTotal)}`} strong />
+              {s.escalationPct !== 0 && (
+                <Row
+                  label={`Escalation (${s.escalationPct}% of material total)`}
+                  value={`$${fmt(s.escalation)}`}
+                />
+              )}
               <Row label="Labor hours from takeoff" value={`${fmt(s.laborHoursBase)} hr`} />
               {s.laborFactorPct !== 0 && (
                 <Row
@@ -171,22 +234,61 @@ export default function SummaryView() {
               <Row
                 label={`Labor cost @ $${fmt(s.laborRate)}/hr`}
                 value={`$${fmt(s.laborCost)}`}
-                strong
+                strong={s.laborBurdenPct === 0 && s.smallToolsPct === 0}
               />
-              {s.directCostsWithOhp !== 0 && (
+              {s.laborBurdenPct !== 0 && (
+                <Row
+                  label={`Labor burden (${s.laborBurdenPct}% of labor cost)`}
+                  value={`$${fmt(s.laborBurden)}`}
+                />
+              )}
+              {s.smallToolsPct !== 0 && (
+                <Row
+                  label={`Small tools (${s.smallToolsPct}% of labor cost)`}
+                  value={`$${fmt(s.smallTools)}`}
+                />
+              )}
+              {(s.laborBurdenPct !== 0 || s.smallToolsPct !== 0) && (
+                <Row label="Labor total" value={`$${fmt(s.laborTotal)}`} strong />
+              )}
+              {s.directCostsWithOhpBase !== 0 && (
                 <Row
                   label="Direct costs (O&P applies)"
-                  value={`$${fmt(s.directCostsWithOhp)}`}
+                  value={`$${fmt(s.directCostsWithOhpBase)}`}
+                />
+              )}
+              {s.directCostsWithOhpTax !== 0 && (
+                <Row
+                  label={`Sales tax on those quotes (${s.taxPct}%)`}
+                  value={`$${fmt(s.directCostsWithOhpTax)}`}
                 />
               )}
               <Row label="Prime cost" value={`$${fmt(s.primeCost)}`} strong />
+              {s.contingencyPct !== 0 && (
+                <Row
+                  label={`Contingency (${s.contingencyPct}% of prime cost)`}
+                  value={`$${fmt(s.contingency)}`}
+                />
+              )}
               <Row label={`Overhead (${s.overheadPct}%)`} value={`$${fmt(s.overhead)}`} />
               <Row label="Subtotal" value={`$${fmt(s.subtotal)}`} />
               <Row label={`Profit (${s.profitPct}%)`} value={`$${fmt(s.profit)}`} />
-              {s.directCostsAtCost !== 0 && (
+              {s.directCostsAtCostBase !== 0 && (
                 <Row
                   label="Direct costs (at cost, no O&P)"
-                  value={`$${fmt(s.directCostsAtCost)}`}
+                  value={`$${fmt(s.directCostsAtCostBase)}`}
+                />
+              )}
+              {s.directCostsAtCostTax !== 0 && (
+                <Row
+                  label={`Sales tax on those (${s.taxPct}%, at cost)`}
+                  value={`$${fmt(s.directCostsAtCostTax)}`}
+                />
+              )}
+              {s.bond !== 0 && (
+                <Row
+                  label={`Bond (${s.bondPct}% of bid price)`}
+                  value={`$${fmt(s.bond)}`}
                 />
               )}
               <div className="mt-3 flex items-baseline justify-between bg-[var(--color-ink-800)] px-3 py-3">
@@ -216,6 +318,7 @@ export default function SummaryView() {
                     <th className="w-32">Category</th>
                     <th className="r w-28">Amount $</th>
                     <th className="w-20">O&amp;P</th>
+                    <th className="w-20">Tax</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -272,6 +375,22 @@ export default function SummaryView() {
                         </label>
                       </td>
                       <td>
+                        <label
+                          className="flex cursor-pointer items-center gap-1 text-[10.5px] text-[var(--color-fg-dim)]"
+                          title="Add sales tax to this amount at the project rate"
+                        >
+                          <input
+                            type="checkbox"
+                            data-testid="cost-taxable"
+                            checked={c.taxable}
+                            onChange={(e) =>
+                              ws.upsertDirectCost({ ...c, taxable: e.target.checked })
+                            }
+                          />
+                          {c.taxable ? "taxed" : "no tax"}
+                        </label>
+                      </td>
+                      <td>
                         <button
                           className="btn btn-danger !border-transparent !px-1 !py-0 text-xs"
                           onClick={() => ws.deleteDirectCost(c.id)}
@@ -283,7 +402,7 @@ export default function SummaryView() {
                   ))}
                   {ws.directCosts.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-4 text-center text-[var(--color-fg-faint)]">
+                      <td colSpan={6} className="py-4 text-center text-[var(--color-fg-faint)]">
                         Gear quotes, lighting packages, subcontractors, permits, equipment
                         rental, bonds — anything not coming from takeoff.
                       </td>

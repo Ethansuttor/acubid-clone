@@ -19,13 +19,58 @@ checker found them all.
 layer counts each" are both worth saying and must not be styled the same, or
 the loud one gets ignored.
 
-**Bid order: waste → tax → material total; labor factor → labor cost; prime
-(incl. O&P-applicable direct costs) → overhead → subtotal → profit → plus
-at-cost items → bid.**
+**Bid order: waste → tax → material total → escalation; labor factor → labor
+cost → burden → small tools → labor total; prime (incl. O&P-applicable direct
+costs and their tax) → contingency → overhead → subtotal → profit → plus
+at-cost items → bond → bid.**
 Tax applies after waste because you buy the waste. Labor factoring adjusts
 hours, not the rate, because that is how estimators reason about conditions.
 Direct costs are split by an explicit per-item flag rather than a global
 rule, because whether O&P applies to a sub quote is a commercial judgement.
+The full chain, with the base each percentage uses, is in `summarize()` and in
+the `estimating-math` skill.
+
+**Every percentage names its own base, in the field label.**
+`Labor burden (% of labor cost)`, `Escalation (% of material total)`,
+`Contingency (% of prime cost)`, `Bond (% of the bid price)`. Which base a
+markup uses is the part an estimator cannot recover from the resulting number,
+and two houses do it differently — so the app states its choice on screen and
+in the export instead of hiding it. Specifically:
+
+- **Burden and small tools are charged on bare labor cost** (hours × rate),
+  not on each other and not on burdened labor. Burden exists as its own line
+  so it can be shown to a reviewer; before this it had to be baked into `$/hr`
+  with nowhere to display it. `laborTotal` is the sum the bid carries.
+- **Escalation is charged on the material total**, and is named "material
+  escalation" for that reason. Labor escalation is expressible through the
+  labor rate and the labor factor, so it is not a second hidden term.
+- **Contingency is a cost, so overhead and profit are charged on it.** It sits
+  between prime cost and overhead.
+- **Sales tax on a direct cost follows that cost into its own bucket**, so a
+  taxable quote marked O&P-applies has its tax marked up too, and a taxable
+  at-cost item has its tax carried at cost. Tax is opt-in per row (`taxable`),
+  because quotes vary in whether tax is already included.
+
+**Bond is solved circularly, and an unsolvable rate is refused rather than
+approximated.**
+A bond premium is a percentage of the contract value and the bond is part of
+that value, so `bid = priceBeforeBond / (1 - p)`. Outside `0 <= p < 1` that
+division is meaningless, so `summarize()` adds no bond and pushes a warning
+instead of emitting a plausible number.
+
+**`bond_pct` deliberately carries no CHECK constraint.**
+The database could reject a rate of 150. It would then reject the *write*
+while the screen kept showing 150, and the warning would disappear on reload —
+the bad input would become invisible. A persistent red banner in the Summary
+tab and at the top of the Excel Summary sheet is the stronger guard, so
+validation lives in `summarize()` alone.
+
+**`summarize()` returns `warnings` separately from `extendEstimate`'s
+`issues`.**
+They answer different questions: `issues` mean takeoff quantity could not be
+priced; `warnings` mean a markup input could not be applied as entered. They
+have different audiences and different fixes, so merging them would blunt
+both.
 
 **Direct costs marked "at cost" are added after profit.**
 So they are carried through at face value. The E2E asserts the invariant by

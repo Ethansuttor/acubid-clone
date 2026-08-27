@@ -26,14 +26,19 @@ Anthropic API key on the server side; everything else works without it.
 
 ### Database migrations
 
-Both files in `supabase/migrations/` are already applied to the `volt-takeoff`
-project. For any other database, run them in order in the SQL editor or with
-the Supabase CLI — `0002_bid_math.sql` is **required**, not optional: the app
-writes `waste_pct` / `tax_pct` / `labor_factor_pct` on projects and
-`typical_multiplier` on layers, so creating a project against a database that
-only has `0001` will fail. (Reading direct costs is the one thing that
-degrades quietly, so an un-migrated database shows an empty cost list rather
-than erroring.)
+`0001_schema.sql` and `0002_bid_math.sql` are already applied to the
+`volt-takeoff` project. **`0003_bid_math_burden_bond.sql` is not** — apply it
+before creating another project there.
+
+For any other database, run all three in order in the SQL editor or with the
+Supabase CLI. None of them is optional: the app writes `waste_pct` /
+`tax_pct` / `labor_factor_pct` and, from `0003`, `labor_burden_pct` /
+`small_tools_pct` / `escalation_pct` / `contingency_pct` / `bond_pct` on
+projects, `typical_multiplier` on layers and `taxable` on direct costs, so
+creating a project against a database missing any of them fails. (Reading
+direct costs is the one thing that degrades quietly, so an un-migrated
+database shows an empty cost list rather than erroring.) Every column added
+by `0003` is additive with a default, so existing rows need no backfill.
 
 Supabase pauses free-tier projects after a stretch of inactivity; restore it
 from the dashboard if sign-in starts failing.
@@ -89,20 +94,33 @@ variable on a deployment cannot switch authentication off.
      + waste %              (loss allowance)
      + sales tax %          (on material after waste)
      = material total
+     + escalation %         (material price movement to buyout)
    labor hours from takeoff
      ± labor factor %       (job conditions)
      × labor rate           = labor cost
-   + direct job costs marked "marked up"
+     + labor burden %       (payroll tax, insurance, fringes)
+     + small tools %        (consumables)
+     = labor total
+   + direct job costs marked "marked up", + tax on the taxable ones
      = prime cost
+     + contingency %
      + overhead %  = subtotal
      + profit %
-   + direct job costs marked "at cost"
+   + direct job costs marked "at cost", + tax on the taxable ones
+     + bond %               (of the BID PRICE, which includes the bond)
      = BID PRICE
    ```
 
+   Every percentage names its base in its field label, because the base is
+   the part you cannot recover from the resulting number. Each term is zero
+   by default. The bond is the standard circular calculation —
+   `bid = price before bond ÷ (1 − bond%)` — and a rate that cannot be
+   solved adds nothing and says so in red rather than inventing a figure.
+
    **Direct job costs** cover everything not from takeoff — gear quotes,
    lighting packages, subcontractors, permits, equipment rental, bonds —
-   each flagged whether overhead and profit apply or it is carried at cost.
+   each flagged whether overhead and profit apply or it is carried at cost,
+   and whether sales tax is added to it.
    *Export to Excel* writes Takeoff / Material / Labor / Summary sheets, and
    an incomplete bid is flagged in red at the top of the Summary sheet.
 

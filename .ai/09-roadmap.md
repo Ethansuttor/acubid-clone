@@ -56,14 +56,23 @@ different payoffs.
 
 ## Bid-math gaps a real estimator will hit
 
-Flagged by audit; each is small and worth doing before the big features:
+Flagged by audit; each was small and worth doing before the big features.
 
-- **Labor burden** (payroll tax, insurance, fringe) as its own line — today it
-  must be baked into `$/hr` with nowhere to show a reviewer.
-- **Sales tax on quotes** — tax currently applies only to takeoff material; a
-  $12,000 gear quote gets no tax line and no "tax included?" flag.
-- **Bond as a percentage of bid price** (the standard circular calculation) —
-  bonds exist only as a fixed-dollar direct cost.
-- **Small tools / consumables** (typically 1–3% of labor), **contingency**,
-  **escalation**.
+**Done** — see `.ai/05-decisions.md` for the order of operations and the base
+each percentage uses, and `tests/bidmath-markups.test.ts` for the hand math:
+
+- ~~**Labor burden** (payroll tax, insurance, fringe) as its own line~~ —
+  `labor_burden_pct`, charged on bare labor cost and shown as its own row.
+- ~~**Sales tax on quotes**~~ — `direct_costs.taxable`, per row, with the tax
+  following the amount into its O&P or at-cost bucket.
+- ~~**Bond as a percentage of bid price**~~ — `bond_pct`, solved circularly.
+  A rate outside `0 <= p < 100` adds no bond and raises a warning.
+- ~~**Small tools / consumables**, **contingency**, **escalation**~~ —
+  `small_tools_pct` (of labor cost), `contingency_pct` (of prime cost, so O&P
+  applies to it), `escalation_pct` (of the material total).
+
+**Still open:**
+
 - **Exclusion tracking**, to prevent double-counting scope a quote covers.
+  Bigger than the rest and really the front half of B-304 (scope letter) — an
+  exclusions list is only defensible if it is built from the actual estimate.

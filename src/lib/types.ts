@@ -18,6 +18,16 @@ export interface Project {
   tax_pct: number;
   /** Labor productivity adjustment, percent. +15 = conditions cost 15% more hours. */
   labor_factor_pct: number;
+  /** Payroll tax, insurance and fringes, percent of labor cost. */
+  labor_burden_pct: number;
+  /** Small tools and consumables, percent of labor cost. Typically 1-3. */
+  small_tools_pct: number;
+  /** Material price movement to buyout, percent of the material total. */
+  escalation_pct: number;
+  /** Cost buffer, percent of prime cost. Marked up like any other cost. */
+  contingency_pct: number;
+  /** Bond premium, percent of the bid price — which includes the bond. */
+  bond_pct: number;
   created_at: string;
   updated_at: string;
 }
@@ -25,7 +35,8 @@ export interface Project {
 /**
  * A cost that does not come from takeoff: gear quotes, lighting packages,
  * subcontractors, permits, equipment rental, bonds. `ohp_applies` decides
- * whether overhead and profit are charged on it or it is carried at cost.
+ * whether overhead and profit are charged on it or it is carried at cost;
+ * `taxable` decides whether sales tax is added to it.
  */
 export interface DirectCost {
   id: string;
@@ -35,6 +46,8 @@ export interface DirectCost {
   category: DirectCostCategory;
   amount: number;
   ohp_applies: boolean;
+  /** Sales tax is added to this amount at the project tax rate. */
+  taxable: boolean;
   sort_order: number;
 }
 

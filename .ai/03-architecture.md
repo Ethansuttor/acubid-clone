@@ -100,7 +100,8 @@ that way.
 
 ## Database
 
-`supabase/migrations/0001_schema.sql` and `0002_bid_math.sql`.
+`supabase/migrations/0001_schema.sql`, `0002_bid_math.sql` and
+`0003_bid_math_burden_bond.sql`.
 Tables: `projects`, `documents`, `sheets`, `items`, `assemblies`,
 `assembly_items`, `layers`, `takeoffs`, `direct_costs`. Every table has RLS
 scoped to `user_id = auth.uid()`. Plan PDFs live in a private `plans` storage
