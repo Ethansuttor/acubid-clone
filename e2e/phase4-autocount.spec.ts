@@ -6,36 +6,67 @@
 //   - only accepted detections extend into quantities/estimate
 //   - review actions are undoable
 //
-// The mock returns 6 detections at the fixture plan's receptacle locations
-// (viewer coords (80,642)(80,392)(80,142)(520,642)(520,392)(520,142)),
-// scaled into rendered-canvas pixels using S inferred from the tile extents.
+// Under the default "ncc-verify" strategy the browser locates candidates
+// itself with deterministic template matching and the API only VERIFIES crops,
+// so this spec mocks the verify call: the first ACCEPTED_CANDIDATES crops match
+// and the rest do not. That fixes the review queue at exactly 6 pending
+// regardless of how many candidates the matcher proposes, which keeps this
+// spec about the review-queue invariant rather than detector accuracy.
+//
+// It does assume the matcher finds at least 6 candidates on the fixture plan;
+// if that stops being true the precondition assertion below says so plainly.
 
 import { test, expect } from "@playwright/test";
 import { signIn, pdfToScreen } from "./helpers";
 
-const RECEPTACLES: [number, number][] = [
-  [80, 642], [80, 392], [80, 142], [520, 642], [520, 392], [520, 142],
-];
+const ACCEPTED_CANDIDATES = 6;
 
 test("phase 4: auto-count review queue", async ({ page }) => {
+  let verifiedCrops = 0;
   await page.route("**/api/autocount", async (route) => {
     const body = route.request().postDataJSON() as {
-      tiles: { x: number; y: number; w: number; h: number }[];
+      mode?: string;
+      crops?: { index: number }[];
+      tiles?: { x: number; y: number; w: number; h: number }[];
     };
-    // canvas width = 612 * S; tiles cover the canvas exactly
-    const canvasW = Math.max(...body.tiles.map((t) => t.x + t.w));
+
+    if (body.mode === "verify") {
+      const crops = body.crops ?? [];
+      verifiedCrops += crops.length;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        json: {
+          verifications: crops.map((c) => ({
+            index: c.index,
+            match: c.index <= ACCEPTED_CANDIDATES,
+            confidence: 0.95 - (c.index - 1) * 0.05,
+          })),
+          model: "mock-verifier",
+        },
+      });
+      return;
+    }
+
+    // Legacy whole-tile path, kept so the spec still works if
+    // DETECTION_STRATEGY is switched back to "tile-scan".
+    const tiles = body.tiles ?? [];
+    const canvasW = Math.max(...tiles.map((t) => t.x + t.w));
     const S = canvasW / 612;
-    const detections = RECEPTACLES.map(([cx, cy], i) => ({
-      x: cx * S - 12,
-      y: cy * S - 12,
-      w: 24,
-      h: 24,
-      confidence: 0.95 - i * 0.05,
-    }));
+    const receptacles: [number, number][] = [
+      [80, 642], [80, 392], [80, 142], [520, 642], [520, 392], [520, 142],
+    ];
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      json: { detections, tilesProcessed: body.tiles.length, model: "mock-detector", warnings: [] },
+      json: {
+        detections: receptacles.map(([cx, cy], i) => ({
+          x: cx * S - 12, y: cy * S - 12, w: 24, h: 24, confidence: 0.95 - i * 0.05,
+        })),
+        tilesProcessed: tiles.length,
+        model: "mock-detector",
+        warnings: [],
+      },
     });
   });
 
@@ -82,7 +113,11 @@ test("phase 4: auto-count review queue", async ({ page }) => {
   await page.mouse.up();
 
   // 6 pending detections; nothing counted yet
-  await expect(page.getByText("6 pending detection(s)")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("6 pending detection(s)")).toBeVisible({ timeout: 60_000 });
+  expect(
+    verifiedCrops,
+    `the matcher proposed ${verifiedCrops} candidates; this spec needs at least ${ACCEPTED_CANDIDATES}`
+  ).toBeGreaterThanOrEqual(ACCEPTED_CANDIDATES);
   await expect(page.getByText("0 EA")).toBeVisible();
 
   // Accept the first (Y): 5 pending, 1 counted

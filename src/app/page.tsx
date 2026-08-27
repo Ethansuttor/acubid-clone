@@ -83,6 +83,11 @@ export default function ProjectsPage() {
         waste_pct: 0,
         tax_pct: 0,
         labor_factor_pct: 0,
+        labor_burden_pct: 0,
+        small_tools_pct: 0,
+        contingency_pct: 0,
+        escalation_pct: 0,
+        bond_pct: 0,
       })
       .select()
       .single();

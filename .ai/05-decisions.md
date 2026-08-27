@@ -33,8 +33,8 @@ toggling one item and checking the bid moves by exactly
 `amount × (1+OH) × (1+profit) − amount`.
 
 **The active client is intentionally local-only.**
-`LOCAL_ONLY = true` and the client factory always returns the localStorage
-adapter. The hardcoded username `1` with an empty password is a temporary
+`LOCAL_ONLY = true` and the client factory always returns the IndexedDB
+adapter (with legacy localStorage migration and a durable outbox). The hardcoded username `1` with an empty password is a temporary
 single-user development choice, not real authentication. The Supabase-shaped
 boundary remains so a future backend can replace the adapter without rewriting
 the estimator. Separately, AI API routes accept the local bearer token only
@@ -83,3 +83,17 @@ Next 16 removed `next lint`; the script had been silently broken (treating
 **Default model `claude-sonnet-4-6`, overridable via `ANTHROPIC_MODEL`.**
 Both AI modules sit behind interfaces (`SymbolDetector`, `SheetAnalyzer`) so
 the model or prompting strategy can be swapped without touching the UI.
+
+**Bid-math gap knobs: where each one lands in the chain.**
+Added August 26, 2026 (`0003_bid_math_gaps.sql`). Placements are commercial
+conventions, chosen and documented rather than configurable: escalation on
+material after waste and before tax (you pay tax on the escalated price);
+labor burden as its own line on bare labor cost; small tools as % of bare
+labor carried in prime; contingency as % of prime with overhead and profit
+applied to it; bond as % of the final bid price via the closed form
+`bid = preBond / (1 - r)` — a bond >= 100% yields Infinity and preflight
+refuses the bid rather than the math guessing a cap. Sales tax on a direct
+cost is opt-in per cost (`taxable`, default false) because quotes usually
+arrive tax-included and silent tax would double-count; the tax follows that
+cost's own O&P treatment. Every placement has a hand-calculated test in
+`tests/bidmath.test.ts` and an E2E in `e2e/bidmath-gaps.spec.ts`.

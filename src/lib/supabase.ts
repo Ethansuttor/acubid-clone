@@ -6,8 +6,9 @@ import { LOCAL_ONLY } from "./local-config";
 
 export const LOCAL_MODE = LOCAL_ONLY;
 
-// Single local browser client; auth and application data persist in
-// localStorage. Keep the Supabase-shaped interface so the estimator does not
+// Single local browser client; auth remains in localStorage while application
+// data, the outbox, and plan files persist in IndexedDB. Keep the
+// Supabase-shaped interface so the estimator does not
 // need a broad data-layer rewrite when the production backend returns.
 let client: SupabaseClient | null = null;
 

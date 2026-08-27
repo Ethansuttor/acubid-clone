@@ -26,6 +26,11 @@ export default function ScopeView() {
       laborFactorPct: project.labor_factor_pct,
       overheadPct: project.overhead_pct,
       profitPct: project.profit_pct,
+      laborBurdenPct: project.labor_burden_pct,
+      smallToolsPct: project.small_tools_pct,
+      contingencyPct: project.contingency_pct,
+      escalationPct: project.escalation_pct,
+      bondPct: project.bond_pct,
       directCosts: ws.directCosts,
     }).bidPrice;
   }, [project, ws.layers, ws.takeoffs, ws.sheets, ws.items, ws.assemblies, ws.assemblyItems, ws.directCosts]);

@@ -4,6 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { Detection, SymbolDetector, TileHint } from "./types";
+import { cellOffsetToTilePx } from "./grid";
 
 // Spec default: claude-sonnet-4-6 or better; override with ANTHROPIC_MODEL.
 const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -16,7 +17,9 @@ function dataUrlParts(dataUrl: string): { mediaType: "image/png" | "image/jpeg";
 
 /**
  * Extract a detection array from model output. Tolerates prose or code
- * fences around the JSON. Returns [] when no valid array is present.
+ * fences around the JSON. Accepts both cell+offset ({"cell":"C4","dx":40,"dy":90})
+ * and absolute pixel coordinates ({"x":100,"y":200}).
+ * Returns [] when no valid array is present.
  */
 export function parseDetections(
   text: string,
@@ -37,8 +40,19 @@ export function parseDetections(
   for (const item of raw) {
     if (typeof item !== "object" || item === null) continue;
     const o = item as Record<string, unknown>;
-    const x = Number(o.x);
-    const y = Number(o.y);
+    let x = Number(o.x);
+    let y = Number(o.y);
+
+    if ((!Number.isFinite(x) || !Number.isFinite(y)) && typeof o.cell === "string") {
+      const dx = Number(o.dx ?? 0);
+      const dy = Number(o.dy ?? 0);
+      const pt = cellOffsetToTilePx(o.cell, dx, dy);
+      if (pt) {
+        x = pt.x;
+        y = pt.y;
+      }
+    }
+
     const w = Number(o.w ?? o.width);
     const h = Number(o.h ?? o.height);
     let confidence = Number(o.confidence);
@@ -71,6 +85,53 @@ export class ClaudeDetector implements SymbolDetector {
     const template = dataUrlParts(templatePng);
     const tile = dataUrlParts(tilePng);
 
+    const userContent: Anthropic.MessageParam["content"] = [
+      { type: "text", text: "TARGET SYMBOL (cropped from the same plan set):" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: template.mediaType, data: template.data },
+      },
+      {
+        type: "text",
+        text:
+          `The target symbol is about ${Math.round(hint.templateW)}x${Math.round(hint.templateH)} pixels. ` +
+          "Below is a crop of the plan drawing at the same scale.",
+      },
+      {
+        type: "image",
+        source: { type: "base64", media_type: tile.mediaType, data: tile.data },
+      },
+    ];
+
+    if (hint.griddedTilePng) {
+      const gridded = dataUrlParts(hint.griddedTilePng);
+      userContent.push(
+        {
+          type: "text",
+          text:
+            "Below is the EXACT SAME tile crop annotated with a 128px red reference grid. " +
+            "Columns are labeled A, B, C, D... and rows are labeled 1, 2, 3, 4...",
+        },
+        {
+          type: "image",
+          source: { type: "base64", media_type: gridded.mediaType, data: gridded.data },
+        }
+      );
+    }
+
+    userContent.push({
+      type: "text",
+      text:
+        "Find EVERY instance of the target symbol in the plan crop, including rotated " +
+        "or mirrored instances. Match the symbol's distinctive shape; ignore text labels, " +
+        "dimension lines, and similar-but-different symbols.\n" +
+        "Respond with ONLY a JSON array. Each element: " +
+        '{"cell": "<e.g. C4>", "dx": <px offset within cell>, "dy": <px offset within cell>, "w": <width px>, "h": <height px>, "confidence": <0..1>} ' +
+        '(or {"x": <left px>, "y": <top px>, "w": <width px>, "h": <height px>, "confidence": <0..1>}) in pixel coordinates ' +
+        `of the plan crop (width ${Math.round(hint.tileW)}, height ${Math.round(hint.tileH)}). ` +
+        "Return [] if the symbol does not appear.",
+    });
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
@@ -80,34 +141,7 @@ export class ClaudeDetector implements SymbolDetector {
       messages: [
         {
           role: "user",
-          content: [
-            { type: "text", text: "TARGET SYMBOL (cropped from the same plan set):" },
-            {
-              type: "image",
-              source: { type: "base64", media_type: template.mediaType, data: template.data },
-            },
-            {
-              type: "text",
-              text:
-                `The target symbol is about ${Math.round(hint.templateW)}x${Math.round(hint.templateH)} pixels. ` +
-                "Below is a crop of the plan drawing at the same scale.",
-            },
-            {
-              type: "image",
-              source: { type: "base64", media_type: tile.mediaType, data: tile.data },
-            },
-            {
-              type: "text",
-              text:
-                "Find EVERY instance of the target symbol in the plan crop, including rotated " +
-                "or mirrored instances. Match the symbol's distinctive shape; ignore text labels, " +
-                "dimension lines, and similar-but-different symbols.\n" +
-                `Respond with ONLY a JSON array. Each element: {"x": <left px>, "y": <top px>, ` +
-                `"w": <width px>, "h": <height px>, "confidence": <0..1>} in pixel coordinates ` +
-                `of the plan crop (width ${Math.round(hint.tileW)}, height ${Math.round(hint.tileH)}). ` +
-                "Return [] if the symbol does not appear.",
-            },
-          ],
+          content: userContent,
         },
       ],
     });

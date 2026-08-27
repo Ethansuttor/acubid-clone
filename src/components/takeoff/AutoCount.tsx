@@ -10,7 +10,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { loadDocument } from "@/lib/pdf";
 import { computeTiles } from "@/lib/autocount/tiling";
-import type { Detection, Tile } from "@/lib/autocount/types";
+import { mapDetectionsToSheet, detectionCenter } from "@/lib/autocount/mapping";
+import { dedupeDetections } from "@/lib/autocount/dedupe";
+import { toGray, matchAll } from "@/lib/autocount/ncc";
+import { blendConfidence } from "@/lib/autocount/verify";
+import { DETECTION_STRATEGY } from "@/lib/autocount/types";
+import type { Detection, Tile, VerifyResponse } from "@/lib/autocount/types";
 import { useWorkspace } from "@/store/workspace";
 import type { Takeoff } from "@/lib/types";
 import type { AiBoxRect } from "./SheetCanvas";
@@ -101,41 +106,143 @@ export default function AutoCount({
 
         setPhase({ kind: "detecting", tiles: tiles.length });
         const { data: sess } = await supabase().auth.getSession();
-        const res = await fetch("/api/autocount", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${sess.session?.access_token ?? ""}`,
-          },
-          body: JSON.stringify({
-            template: template.toDataURL("image/png"),
-            templateW: tw,
-            templateH: th,
-            tiles,
-          }),
-        });
-        if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(err?.error ?? `Auto-count failed (HTTP ${res.status})`);
+        const authHeader = `Bearer ${sess.session?.access_token ?? ""}`;
+
+        let finalCanvasDetections: Detection[] = [];
+        let usedModel = "ncc-template-matcher";
+
+        if (DETECTION_STRATEGY === "ncc-verify") {
+          // Stage 1: Deterministic NCC template matching in browser across non-blank tiles.
+          // Use the crop canvas's OWN integer dimensions: tw/th are floats
+          // (request.w * S + 2 * pad), while crop() floored them when sizing the
+          // canvas. Passing the float pair to toGray/matchAll indexes a buffer of a
+          // different size and silently yields zero matches. See 06-bug-history.md.
+          const tplW = template.width;
+          const tplH = template.height;
+          const tplCtx = template.getContext("2d")!;
+          const tplData = tplCtx.getImageData(0, 0, tplW, tplH);
+          const tplGray = toGray(tplData.data, tplW, tplH);
+
+          const rawCandidates: Detection[] = [];
+          for (let i = 0; i < tiles.length; i++) {
+            const t = tiles[i];
+            const tCanvas = document.createElement("canvas");
+            tCanvas.width = t.w;
+            tCanvas.height = t.h;
+            const tctx = tCanvas.getContext("2d")!;
+            tctx.drawImage(canvas, t.x, t.y, t.w, t.h, 0, 0, t.w, t.h);
+            const tileData = tctx.getImageData(0, 0, t.w, t.h);
+            const tileGray = toGray(tileData.data, t.w, t.h);
+
+            const hits = matchAll({ g: tileGray, w: t.w, h: t.h }, { g: tplGray, w: tplW, h: tplH }, 0.5);
+            for (const h of hits) {
+              rawCandidates.push({ ...h, x: h.x + t.x, y: h.y + t.y });
+            }
+          }
+
+          const dedupedCandidates = dedupeDetections(rawCandidates);
+
+          if (dedupedCandidates.length === 0) {
+            finalCanvasDetections = [];
+          } else {
+            // Stage 2: Extract 1.6x patches around candidates and verify with LLM in batches of up to 24
+            const cropW = Math.max(1, Math.min(canvas.width, Math.round(1.6 * tw)));
+            const cropH = Math.max(1, Math.min(canvas.height, Math.round(1.6 * th)));
+
+            const candidateCrops = dedupedCandidates.map((c, idx) => {
+              const cx = c.x + c.w / 2;
+              const cy = c.y + c.h / 2;
+              const cropX = Math.max(0, Math.min(canvas.width - cropW, Math.round(cx - cropW / 2)));
+              const cropY = Math.max(0, Math.min(canvas.height - cropH, Math.round(cy - cropH / 2)));
+              const cCanvas = crop(canvas, cropX, cropY, cropW, cropH);
+              return {
+                index: idx + 1,
+                image: cCanvas.toDataURL("image/png"),
+                box: c,
+              };
+            });
+
+            const templateDataUrl = template.toDataURL("image/png");
+            const BATCH_SIZE = 24;
+            const verifiedList: Detection[] = [];
+
+            for (let b = 0; b < candidateCrops.length; b += BATCH_SIZE) {
+              const batch = candidateCrops.slice(b, b + BATCH_SIZE);
+              const res = await fetch("/api/autocount", {
+                method: "POST",
+                headers: {
+                  "content-type": "application/json",
+                  authorization: authHeader,
+                },
+                body: JSON.stringify({
+                  mode: "verify",
+                  template: templateDataUrl,
+                  crops: batch.map((item) => ({ index: item.index, image: item.image })),
+                }),
+              });
+
+              if (!res.ok) {
+                const err = (await res.json().catch(() => null)) as { error?: string } | null;
+                throw new Error(err?.error ?? `Crop verification failed (HTTP ${res.status})`);
+              }
+
+              const result = (await res.json()) as VerifyResponse;
+              usedModel = result.model;
+
+              for (const v of result.verifications) {
+                if (v.match) {
+                  const orig = candidateCrops[v.index - 1];
+                  if (orig) {
+                    const blended = blendConfidence(orig.box.confidence, v.confidence);
+                    verifiedList.push({ ...orig.box, confidence: blended });
+                  }
+                }
+              }
+            }
+
+            finalCanvasDetections = verifiedList;
+          }
+        } else {
+          // Legacy tile-scan strategy
+          const res = await fetch("/api/autocount", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              authorization: authHeader,
+            },
+            body: JSON.stringify({
+              template: template.toDataURL("image/png"),
+              templateW: tw,
+              templateH: th,
+              tiles,
+            }),
+          });
+          if (!res.ok) {
+            const err = (await res.json().catch(() => null)) as { error?: string } | null;
+            throw new Error(err?.error ?? `Auto-count failed (HTTP ${res.status})`);
+          }
+          const result = (await res.json()) as { detections: Detection[]; model: string };
+          finalCanvasDetections = result.detections;
+          usedModel = result.model;
         }
-        const result = (await res.json()) as { detections: Detection[]; model: string };
 
         // Canvas px -> PDF units; land as pending count takeoffs (undoable).
-        const takeoffs: Takeoff[] = result.detections.map((d) => ({
+        const sheetDetections = mapDetectionsToSheet(finalCanvasDetections, { x: 0, y: 0 }, S);
+        const takeoffs: Takeoff[] = sheetDetections.map((d) => ({
           id: crypto.randomUUID(),
           layer_id: layer.id,
           sheet_id: sheet.id,
           project_id: sheet.project_id,
           user_id: ws.userId!,
           kind: "count" as const,
-          geometry: { x: (d.x + d.w / 2) / S, y: (d.y + d.h / 2) / S },
+          geometry: detectionCenter(d),
           source: "ai" as const,
           status: "pending" as const,
           ai_confidence: d.confidence,
         }));
         ws.addTakeoffs(takeoffs);
         setCursor(0);
-        setPhase({ kind: "done", found: takeoffs.length, model: result.model });
+        setPhase({ kind: "done", found: takeoffs.length, model: usedModel });
       } catch (e) {
         setPhase({ kind: "error", message: e instanceof Error ? e.message : String(e) });
       } finally {

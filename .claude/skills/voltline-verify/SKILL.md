@@ -9,11 +9,12 @@ Run all five. Report what actually happened, including failures and their
 output. Never describe unverified work as done.
 
 ```sh
-npm test                # 149 unit tests, 8 files  (~1s)
-npx tsc --noEmit        # typecheck
+npm test                # 368 unit tests, 20 files (~3s)
+npm run typecheck       # tsc --noEmit
 npm run lint            # eslint flat config
-npx playwright test     # 7 E2E specs             (~30s)
-npx next build          # production build
+npm run test:e2e        # 12 E2E specs            (~30s)
+npm run bench           # large-estimate benchmark
+npm run build           # production build
 ```
 
 If `vitest: not found`, `node_modules` was pruned between sessions — run

@@ -1,7 +1,10 @@
 # Never lose an edit: the journal, the vault folder, and cloud sync
 
 **Written:** August 26, 2026
-**Status:** plan only — no code written, nothing here is implemented.
+**Status:** browser milestone N-1 is partially implemented. IndexedDB tables/files,
+an atomic mutation outbox, persistent-storage controls, and an optional recovery
+folder mirror are live. Cloud sync, hash-chain verification, restore UX, and the
+desktop vault remain planned.
 **The requirement, in the owner's words:** *"it should be in the cloud and
 more than that it should never lose information. everything should be saved
 immediately… saving to the cloud and then saving to some special kind of
@@ -121,11 +124,11 @@ Rules:
 
 ## Browser mode (the honest approximation, until plan 13 ships)
 
-- Journal and tables move to **IndexedDB** (localStorage stays only as the
+- Journal and tables now use **IndexedDB** (localStorage stays only as the
   legacy read path — it is too small and synchronous for a journal).
-- Call `navigator.storage.persist()` on first load. One line; do it now
-  regardless of the rest of this plan.
-- Optional: the File System Access API can grant the web app a real vault
+- The dashboard now offers `navigator.storage.persist()` as a user-triggered
+  protection action.
+- Implemented foundation: the File System Access API can grant the web app a real vault
   directory ("choose your backup folder") — Chromium-only, and the
   permission can lapse and need re-granting. Offer it; do not rely on it.
 - Stated plainly: a browser can still lose IndexedDB to a profile wipe or
@@ -137,8 +140,8 @@ Rules:
 
 ## The cloud side
 
-- The Supabase project and schema already exist (migrations are applied to
-  the live project). Sync is **idempotent per-row upserts** carrying the
+- The repository contains the cloud migrations, but their live-project status
+  must be verified before rollout. Future sync is **idempotent per-row upserts** carrying the
   `opId`; an `op_log` table records applied opIds so a retried push is a
   no-op. Server timestamps are authoritative.
 - **Pull-on-load:** fetch the project's rows, reconcile with local by row

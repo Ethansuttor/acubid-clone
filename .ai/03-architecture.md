@@ -35,7 +35,8 @@ surfaces (Estimate tab, Summary tab, Excel export) can never disagree.
 | `units.ts` | Feet-inch parsing/formatting, number formatting, `parseNumericInput`. |
 | `pdf.ts` | PDF.js wrapper with a per-document cache. |
 | `supabase.ts` | Client factory; routes database queries to the local client (`src/lib/localdb.ts`). |
-| `localdb.ts` | localStorage-backed database client implementing the Supabase query builder interface. |
+| `localdb.ts` | IndexedDB-backed database client with an append-only outbox, legacy localStorage migration, plan-file storage, and the Supabase query-builder interface. |
+| `recovery-folder.ts` | Optional user-selected folder mirror for baselines, current JSON, per-mutation journal files, and plan PDFs. |
 | `autocount/` | Symbol detection: `types.ts` (the `SymbolDetector` interface), `tiling.ts`, `dedupe.ts`, `claude.ts`. |
 | `sheetai/` | Title-block reading: `types.ts` (`SheetAnalyzer`), `scale.ts`, `claude.ts`. |
 
@@ -61,11 +62,11 @@ persisted. Do not "optimise" this by caching feet.
 ## `src/store/workspace.ts`
 
 One Zustand store holding project, documents, sheets, layers, takeoffs,
-items, assemblies, assemblyItems, directCosts, snapshots, plus editor state.
+items, assemblies, assemblyItems, directCosts, proposalEntries, snapshots, plus editor state.
 
-- **Fail-Closed Loading (`load(projectId)`):** Evaluates 10 parallel entity
+- **Fail-Closed Loading (`load(projectId)`):** Evaluates 11 parallel entity
   queries (`projects`, `documents`, `sheets`, `layers`, `takeoffs`, `items`,
-  `assemblies`, `assembly_items`, `direct_costs`, `bid_snapshots`). If any
+  `assemblies`, `assembly_items`, `direct_costs`, `proposal_entries`, `bid_snapshots`). If any
   query fails or if `project.data` is missing, the load atomically fails closed:
   it sets `loadError` and zeroes out all collections to prevent partial-state
   estimates from rendering or being exported.
@@ -126,8 +127,8 @@ that way.
 
 `supabase/migrations/0001_schema.sql` and `0002_bid_math.sql`.
 Tables: `projects`, `documents`, `sheets`, `items`, `assemblies`,
-`assembly_items`, `layers`, `takeoffs`, `direct_costs`, `bid_snapshots`.
-In local mode, the browser localStorage layer mirrors these 10 tables and provides
+`assembly_items`, `layers`, `takeoffs`, `direct_costs`, `proposal_entries`, `bid_snapshots`.
+In local mode, IndexedDB mirrors these 11 tables, atomically journals mutations, and provides
 a local `plans` storage bucket namespaced by user id. Project deletion cascades
 through project-owned records and removes stored plan binaries.
 

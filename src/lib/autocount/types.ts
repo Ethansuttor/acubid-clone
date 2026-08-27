@@ -1,6 +1,10 @@
-// AI auto-count module. Structured as its own module with a narrow
-// interface (SymbolDetector) so the model or prompting strategy can be
-// swapped without touching the takeoff UI.
+// AI auto-count module. Structured with narrow interfaces (SymbolDetector, SymbolVerifier)
+// so detection and verification strategies can be swapped without touching the takeoff UI.
+
+/** Active auto-count strategy: "ncc-verify" (two-stage deterministic NCC + LLM crop verify) or "tile-scan" (whole-tile LLM scan) */
+export const DETECTION_STRATEGY: "ncc-verify" | "tile-scan" = "ncc-verify";
+
+export type DetectionStrategy = "ncc-verify" | "tile-scan";
 
 /** Axis-aligned box; units depend on context (tile px or PDF units). */
 export interface Box {
@@ -21,6 +25,7 @@ export interface Tile extends Box {
 }
 
 export interface DetectRequest {
+  mode?: "detect";
   /** PNG data URL of the example symbol crop. */
   template: string;
   /** Template size in rendered pixels (for scale hints in the prompt). */
@@ -48,4 +53,43 @@ export interface TileHint {
   templateH: number;
   tileW: number;
   tileH: number;
+  griddedTilePng?: string;
 }
+
+/** A single numbered candidate crop sent to the verifier */
+export interface CandidateCrop {
+  index: number;
+  /** PNG data URL of the 1.6x candidate crop patch */
+  image: string;
+  /** The candidate detection box in canvas pixel space */
+  box: Detection;
+}
+
+export interface VerifyCropItem {
+  index: number;
+  image: string; // PNG data URL
+}
+
+export interface VerifyRequest {
+  mode: "verify";
+  template: string; // PNG data URL
+  crops: VerifyCropItem[];
+}
+
+export interface VerificationResult {
+  index: number;
+  match: boolean;
+  confidence: number; // 0..1
+}
+
+export interface VerifyResponse {
+  verifications: VerificationResult[];
+  model: string;
+}
+
+export interface SymbolVerifier {
+  readonly model: string;
+  verifyCrops(templatePng: string, crops: VerifyCropItem[]): Promise<VerificationResult[]>;
+}
+
+export type AutoCountRequest = DetectRequest | VerifyRequest;

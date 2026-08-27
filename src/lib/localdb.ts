@@ -103,6 +103,12 @@ function bytesFromBase64(value: string): Uint8Array {
   return bytes;
 }
 
+function ownedArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 async function ensureMigrated(): Promise<void> {
   if (!usesIndexedDb()) return;
   const db = await openDatabase();
@@ -121,7 +127,7 @@ async function ensureMigrated(): Promise<void> {
     const value = localStorage.getItem(key);
     if (value !== null) {
       files.put(
-        new Blob([bytesFromBase64(value)], { type: "application/pdf" }),
+        new Blob([ownedArrayBuffer(bytesFromBase64(value))], { type: "application/pdf" }),
         key.slice(FILE_PREFIX.length)
       );
     }
@@ -379,7 +385,9 @@ async function writeFile(path: string, blob: Blob): Promise<void> {
 async function readFile(path: string): Promise<Blob | null> {
   if (!usesIndexedDb()) {
     const value = localStorage.getItem(`${FILE_PREFIX}${path}`);
-    return value ? new Blob([bytesFromBase64(value)], { type: "application/pdf" }) : null;
+    return value
+      ? new Blob([ownedArrayBuffer(bytesFromBase64(value))], { type: "application/pdf" })
+      : null;
   }
   await ensureMigrated();
   const db = await openDatabase();
@@ -422,7 +430,7 @@ export async function exportLocalRecoveryBundle(): Promise<{
       if (value !== null) {
         files.push({
           path: key.slice(FILE_PREFIX.length),
-          blob: new Blob([bytesFromBase64(value)], { type: "application/pdf" }),
+          blob: new Blob([ownedArrayBuffer(bytesFromBase64(value))], { type: "application/pdf" }),
         });
       }
     }
@@ -484,7 +492,11 @@ export function createLocalClient() {
               const blob =
                 bytes instanceof Blob
                   ? bytes
-                  : new Blob([bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)], {
+                  : new Blob([
+                      ownedArrayBuffer(
+                        bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+                      ),
+                    ], {
                       type: "application/pdf",
                     });
               await writeFile(path, blob);

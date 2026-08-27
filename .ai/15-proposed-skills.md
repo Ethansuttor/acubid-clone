@@ -1,10 +1,17 @@
-# Proposed skills — descriptions only, awaiting owner approval
+# Project skills — why each one exists
 
 **Written:** August 26, 2026
-**Status:** nothing here exists. These are descriptions of skills that
-*could* be written into `.claude/skills/`, for the owner to approve or
-reject individually. The existing three (`estimating-math`, `ai-feature`,
-`voltline-verify`) stay as they are; nothing below replaces them.
+**Status:** **all four were approved and built on August 26, 2026** and now
+live in `.claude/skills/`. This file is kept as the rationale record — why
+each exists and what failure it prevents. The original three
+(`estimating-math`, `ai-feature`, `voltline-verify`) are unchanged.
+
+Each entry below describes a skill that now exists; `durable-persistence`
+and `desktop-shell` were written against the code as it actually stands
+(IndexedDB + outbox + recovery folder; the Electron queue in
+[`16-desktop-task-queue.md`](16-desktop-task-queue.md)), while
+`job-cost-math` is pre-positioned for SP-1 and describes formulas that are
+planned, not yet implemented.
 
 A skill earns its place here the same way an invariant does: it encodes
 rules whose violation produces a wrong number or lost data that *looks*
@@ -102,7 +109,7 @@ and the specific failure it exists to prevent.
 
 ---
 
-## If you approve only two
+## The recommendation at the time (kept for the record — all four were built)
 
 **`durable-persistence` and `schema-migration`.** They guard the two new
 failure classes plans 13 and 14 create the surface for: losing data and

@@ -26,7 +26,7 @@ that produces a quantity or a dollar.
   for the commands and measured benchmark result.
 - **Client & Persistence Architecture:** Local-first browser architecture with
   `LOCAL_ONLY = true` configured in `src/lib/local-config.ts` and backed by
-  a localStorage client (`src/lib/localdb.ts`). Cloud Supabase is disconnected
+  an IndexedDB client with a durable outbox (`src/lib/localdb.ts`). Cloud Supabase is disconnected
   from the active client workflow while maintaining schema-shaped API parity.
 - **Fail-Closed Loading:** Atomic workspace load (`load(projectId)` in `src/store/workspace.ts`)
   evaluates all 10 entity queries (`projects`, `documents`, `sheets`, `layers`,

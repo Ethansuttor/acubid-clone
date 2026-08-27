@@ -502,6 +502,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           laborFactorPct: state.project.labor_factor_pct,
           overheadPct: state.project.overhead_pct,
           profitPct: state.project.profit_pct,
+          laborBurdenPct: state.project.labor_burden_pct,
+          smallToolsPct: state.project.small_tools_pct,
+          contingencyPct: state.project.contingency_pct,
+          escalationPct: state.project.escalation_pct,
+          bondPct: state.project.bond_pct,
           directCosts: state.directCosts,
         });
         const preflight = bidPreflight({

@@ -127,6 +127,33 @@ later insert failed, the PDF or partial document remained in localStorage.
 the upload; a failed sheet insert deletes the document, which cascades any
 partial sheet rows and the PDF bytes.
 
+## 14. Float dimensions silently disabled the whole NCC matcher (money: none, feature: total)
+
+The two-stage auto-count path (deterministic template match, then LLM crop
+verification) shipped finding **zero** symbols, with no error anywhere.
+
+`crop()` sizes its canvas with `Math.floor(w)`, but `AutoCount` then passed the
+original **float** `tw`/`th` (`request.w * S + 2 * pad`) to `getImageData`,
+`toGray`, and `matchAll`. Indexing a `Float32Array` at fractional offsets is
+silently discarded by the runtime, so the template buffer was mostly unwritten:
+the matcher returned no candidates, never called the verify endpoint, and
+raised nothing. Auto-count simply found nothing, quickly and quietly.
+
+Measured directly: with integer template dimensions the matcher found 3 of 3
+stamped symbols; with `w + 0.34` it found 0. A float **image** dimension is
+worse than useless — it produced 19 false positives.
+
+**Fix:** `AutoCount` uses the crop canvas's own `template.width/height`, and
+`matchTemplate` now throws on non-integer dimensions or a buffer smaller than
+its stated size, rather than returning `[]`. Invariant 6 ("parsers reject
+rather than guess") applies to image buffers too: a silent empty result is
+indistinguishable from "there is nothing there". Covered by four regression
+tests in `tests/autocount-ncc.test.ts`.
+
+**How it escaped:** the NCC unit tests build their own integer-sized synthetic
+images, so they passed throughout. Only driving the real UI caught it — which
+is why `voltline-verify` requires E2E for anything with a visible surface.
+
 ---
 
 ## Security fixes

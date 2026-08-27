@@ -18,10 +18,13 @@ npm run dev                  # http://localhost:3000
 
 Sign in with username **`1`**. The password is intentionally empty and no
 password field is required. Projects, catalog data, snapshots, and plan PDFs
-are stored in this browser's localStorage.
+are stored in IndexedDB. Each mutation is committed with a durable local
+outbox record; the dashboard can request persistent browser storage and mirror
+JSON recovery records plus plan PDFs to a user-selected folder.
 
-This is development authentication and local persistence, not a production
-security or backup system. Clearing site data removes the only local copy.
+This is development authentication and local-first persistence, not production
+security or cloud backup. Clearing site data can remove the browser copy; use
+the recovery-folder control as a second local copy.
 Supabase packages and historical migrations remain as future compatibility
 work, but the active client does not connect to Supabase or read Supabase
 environment variables.
@@ -39,7 +42,9 @@ environment variables.
    missing component links, and zero prices/labor units.
 5. **Estimate** — inspect extended layer/item lines, material rollup, labor,
    and any quantity that could not be priced.
-6. **Summary** — set rates/markups and direct costs, resolve bid-preflight
+6. **Scope** — classify takeoff by area/system/phase and prepare inclusions,
+   exclusions, allowances, alternates, and a printable proposal.
+7. **Summary** — set rates/markups and direct costs, resolve bid-preflight
    blockers, export Excel, and create frozen local revision snapshots.
 
 ### Takeoff controls

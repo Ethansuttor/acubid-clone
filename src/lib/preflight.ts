@@ -96,10 +96,16 @@ export function bidPreflight(input: BidPreflightInput): BidPreflight {
     input.summary.materialTotal,
     input.summary.laborHoursBase,
     input.summary.laborHoursTotal,
+    input.summary.laborBurden,
     input.summary.laborCost,
+    input.summary.smallTools,
+    input.summary.directCostTax,
     input.summary.primeCost,
+    input.summary.contingency,
     input.summary.overhead,
     input.summary.profit,
+    input.summary.preBondTotal,
+    input.summary.bondAmount,
     input.summary.bidPrice,
   ];
   add(
@@ -116,6 +122,10 @@ export function bidPreflight(input: BidPreflightInput): BidPreflight {
     ["sales tax", input.project.tax_pct],
     ["overhead", input.project.overhead_pct],
     ["profit", input.project.profit_pct],
+    ["labor burden", input.project.labor_burden_pct],
+    ["small tools", input.project.small_tools_pct],
+    ["contingency", input.project.contingency_pct],
+    ["escalation", input.project.escalation_pct],
   ] as const;
   const invalidCommercialFields: string[] = nonNegativeCommercialFields
     .filter(([, value]) => !Number.isFinite(value) || value < 0)
@@ -125,6 +135,15 @@ export function bidPreflight(input: BidPreflightInput): BidPreflight {
     input.project.labor_factor_pct <= -100
   ) {
     invalidCommercialFields.push("labor factor");
+  }
+  // A bond of 100%+ of the bid price has no finite solution to the circular
+  // bond calculation; summarize() reports Infinity and this check names why.
+  if (
+    !Number.isFinite(input.project.bond_pct) ||
+    input.project.bond_pct < 0 ||
+    input.project.bond_pct >= 100
+  ) {
+    invalidCommercialFields.push("bond");
   }
   const invalidDirectCosts = input.directCosts.filter(
     (cost) => !Number.isFinite(cost.amount) || cost.amount < 0
@@ -140,7 +159,7 @@ export function bidPreflight(input: BidPreflightInput): BidPreflight {
     ]
       .slice(0, 6)
       .join(", ") +
-      " must be finite and valid (labor factor may be negative but must remain above -100%)."
+      " must be finite and valid (labor factor may be negative but must remain above -100%; bond must be below 100% of the bid)."
   );
 
   const invalidLayers = input.layers.filter(

@@ -18,6 +18,16 @@ export interface Project {
   tax_pct: number;
   /** Labor productivity adjustment, percent. +15 = conditions cost 15% more hours. */
   labor_factor_pct: number;
+  /** Labor burden (payroll tax, insurance, fringe), percent of bare labor cost. */
+  labor_burden_pct: number;
+  /** Small tools & consumables allowance, percent of bare labor cost. */
+  small_tools_pct: number;
+  /** Contingency, percent of prime cost. Overhead and profit apply to it. */
+  contingency_pct: number;
+  /** Material price escalation, percent of material after waste. Taxed. */
+  escalation_pct: number;
+  /** Bond premium, percent of the FINAL bid price (standard circular calc). */
+  bond_pct: number;
   created_at: string;
   updated_at: string;
 }
@@ -35,6 +45,13 @@ export interface DirectCost {
   category: DirectCostCategory;
   amount: number;
   ohp_applies: boolean;
+  /**
+   * Sales tax at the project rate is added on top of this amount. Default
+   * false: most quotes arrive tax-included, and silently adding tax would
+   * double-count it. Rows written before this field existed read undefined,
+   * which is treated as false.
+   */
+  taxable?: boolean;
   sort_order: number;
 }
 

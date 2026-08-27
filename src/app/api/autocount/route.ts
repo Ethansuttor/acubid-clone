@@ -1,20 +1,28 @@
-// AI auto-count endpoint: receives an example-symbol crop plus overlapping
-// tiles of the rendered sheet, runs the symbol detector on each tile, maps
-// detections into sheet canvas space, dedupes across tile overlaps, and
-// returns candidates. The caller stores them as PENDING takeoffs — nothing
-// is counted until the estimator confirms in the review queue.
+// AI auto-count endpoint: supports two modes:
+// 1. "verify" (default/GA-6): receives an example-symbol template plus candidate crops (up to 24),
+//    runs ClaudeVerifier to verify each crop without coordinate guessing, and returns match decisions.
+// 2. "detect" (legacy): receives whole sheet tiles, runs ClaudeDetector, and returns pixel detections.
 
 import { NextRequest, NextResponse } from "next/server";
 import { ClaudeDetector } from "@/lib/autocount/claude";
+import { ClaudeVerifier } from "@/lib/autocount/verify";
 import { dedupeDetections } from "@/lib/autocount/dedupe";
-import type { DetectRequest, Detection, SymbolDetector } from "@/lib/autocount/types";
+import type {
+  AutoCountRequest,
+  DetectRequest,
+  Detection,
+  SymbolDetector,
+  SymbolVerifier,
+  VerifyRequest,
+} from "@/lib/autocount/types";
 
 export const maxDuration = 300;
 
 const MAX_TILES = 40;
+const MAX_CROPS_PER_REQUEST = 24;
 const CONCURRENCY = 4;
 
-/** Largest request body accepted, in bytes. Each tile is a base64 image. */
+/** Largest request body accepted, in bytes. Each tile/crop is a base64 image. */
 const MAX_BODY_BYTES = 48 * 1024 * 1024;
 
 async function authorize(req: NextRequest): Promise<boolean> {
@@ -41,7 +49,7 @@ export async function POST(req: NextRequest) {
   const declared = Number(req.headers.get("content-length") ?? 0);
   if (declared > MAX_BODY_BYTES) {
     return NextResponse.json(
-      { error: `Request too large (${Math.round(declared / 1e6)} MB). Reduce the render scale or work sheet by sheet.` },
+      { error: `Request too large (${Math.round(declared / 1e6)} MB). Reduce the render scale or batch size.` },
       { status: 413 }
     );
   }
@@ -56,18 +64,52 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Request too large" }, { status: 413 });
   }
 
-  let body: DetectRequest;
+  let body: AutoCountRequest;
   try {
-    body = JSON.parse(raw) as DetectRequest;
+    body = JSON.parse(raw) as AutoCountRequest;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  if (!body.template || !Array.isArray(body.tiles) || body.tiles.length === 0) {
+
+  // ---- MODE 1: VERIFY CROPS (GA-6) ----------------------------------------
+  if ("mode" in body && body.mode === "verify") {
+    const verifyReq = body as VerifyRequest;
+    if (!verifyReq.template || typeof verifyReq.template !== "string") {
+      return NextResponse.json({ error: "template image is required" }, { status: 400 });
+    }
+    if (!Array.isArray(verifyReq.crops) || verifyReq.crops.length === 0) {
+      return NextResponse.json({ error: "crops array is required and must not be empty" }, { status: 400 });
+    }
+    if (verifyReq.crops.length > MAX_CROPS_PER_REQUEST) {
+      return NextResponse.json(
+        { error: `Too many crops in single batch (${verifyReq.crops.length} > ${MAX_CROPS_PER_REQUEST})` },
+        { status: 400 }
+      );
+    }
+
+    const verifier: SymbolVerifier = new ClaudeVerifier(apiKey);
+    try {
+      const verifications = await verifier.verifyCrops(verifyReq.template, verifyReq.crops);
+      return NextResponse.json({
+        verifications,
+        model: verifier.model,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        { error: `Verification failed: ${e instanceof Error ? e.message : String(e)}` },
+        { status: 502 }
+      );
+    }
+  }
+
+  // ---- MODE 2: WHOLE-TILE DETECT (LEGACY) --------------------------------
+  const detectReq = body as DetectRequest;
+  if (!detectReq.template || !Array.isArray(detectReq.tiles) || detectReq.tiles.length === 0) {
     return NextResponse.json({ error: "template and tiles are required" }, { status: 400 });
   }
-  if (body.tiles.length > MAX_TILES) {
+  if (detectReq.tiles.length > MAX_TILES) {
     return NextResponse.json(
-      { error: `Too many tiles (${body.tiles.length} > ${MAX_TILES}). Zoom in or use a smaller sheet region.` },
+      { error: `Too many tiles (${detectReq.tiles.length} > ${MAX_TILES}). Zoom in or use a smaller sheet region.` },
       { status: 400 }
     );
   }
@@ -78,13 +120,13 @@ export async function POST(req: NextRequest) {
   const errors: string[] = [];
   let index = 0;
   async function worker() {
-    while (index < body.tiles.length) {
+    while (index < detectReq.tiles.length) {
       const i = index++;
-      const tile = body.tiles[i];
+      const tile = detectReq.tiles[i];
       try {
-        const found = await detector.detectInTile(body.template, tile.image, {
-          templateW: body.templateW,
-          templateH: body.templateH,
+        const found = await detector.detectInTile(detectReq.template, tile.image, {
+          templateW: detectReq.templateW,
+          templateH: detectReq.templateH,
           tileW: tile.w,
           tileH: tile.h,
         });
@@ -96,9 +138,9 @@ export async function POST(req: NextRequest) {
       }
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, body.tiles.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, detectReq.tiles.length) }, worker));
 
-  if (all.length === 0 && errors.length === body.tiles.length) {
+  if (all.length === 0 && errors.length === detectReq.tiles.length) {
     return NextResponse.json(
       { error: `Detection failed on all tiles: ${errors[0]}` },
       { status: 502 }
@@ -108,7 +150,7 @@ export async function POST(req: NextRequest) {
   const detections = dedupeDetections(all);
   return NextResponse.json({
     detections,
-    tilesProcessed: body.tiles.length - errors.length,
+    tilesProcessed: detectReq.tiles.length - errors.length,
     model: detector.model,
     warnings: errors.length ? [`${errors.length} tile(s) failed`] : [],
   });

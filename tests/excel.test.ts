@@ -24,6 +24,11 @@ const project: Project = {
   waste_pct: summaryInputs.wastePct,
   tax_pct: summaryInputs.taxPct,
   labor_factor_pct: summaryInputs.laborFactorPct,
+  labor_burden_pct: 0,
+  small_tools_pct: 0,
+  contingency_pct: 0,
+  escalation_pct: 0,
+  bond_pct: 0,
   created_at: "",
   updated_at: "",
 };

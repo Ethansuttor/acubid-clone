@@ -21,9 +21,12 @@ were already made and paid for.
 | [`10-audit-and-competitive-roadmap.md`](10-audit-and-competitive-roadmap.md) | You need the failure-risk audit, Accubid comparison, or owner action list. |
 | [`11-gemini-flash-task-queue.md`](11-gemini-flash-task-queue.md) | You want bounded, copy-pasteable tasks for a fast coding model. |
 | [`12-spectrum-job-cost-plan.md`](12-spectrum-job-cost-plan.md) | You're planning post-award work: job cost, budgets, change orders, billing, WIP, or an ERP handoff. |
+| [`13-cloud-durability-and-non-llm-autocount.md`](13-cloud-durability-and-non-llm-autocount.md) | You need the implemented browser durability status, PDF-layer strategy, non-LLM counter design, or owner action list. |
 | [`13-windows-desktop-plan.md`](13-windows-desktop-plan.md) | You're planning the Windows desktop (Electron) version of the app. |
 | [`14-durability-and-sync-plan.md`](14-durability-and-sync-plan.md) | You're planning the never-lose-data journal, vault folder, or cloud sync. |
 | [`15-proposed-skills.md`](15-proposed-skills.md) | You're deciding which new coding skills to approve and write. |
+| [`16-desktop-task-queue.md`](16-desktop-task-queue.md) | You're delegating the Windows/Electron build to a fast coding model, one task at a time. |
+| [`17-autocount-accuracy-plan.md`](17-autocount-accuracy-plan.md) | Auto-count is inaccurate: the diagnosis, eval harness, and fix queue. |
 
 ## The one-paragraph version
 

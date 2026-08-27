@@ -68,6 +68,11 @@ export default function SummaryView() {
       laborFactorPct: project.labor_factor_pct,
       overheadPct: project.overhead_pct,
       profitPct: project.profit_pct,
+      laborBurdenPct: project.labor_burden_pct,
+      smallToolsPct: project.small_tools_pct,
+      contingencyPct: project.contingency_pct,
+      escalationPct: project.escalation_pct,
+      bondPct: project.bond_pct,
       directCosts: ws.directCosts,
     });
     return {
@@ -131,6 +136,7 @@ export default function SummaryView() {
       category: "quote",
       amount: 0,
       ohp_applies: true,
+      taxable: false,
       sort_order: ws.directCosts.length,
     });
   }
@@ -211,6 +217,38 @@ export default function SummaryView() {
               onCommit={(v) => ws.updateProject({ labor_factor_pct: v })}
             />
             <Field
+              testId="labor-burden-pct"
+              label="Labor burden (%)"
+              percent
+              hint="Payroll tax, insurance, fringe — % of labor cost"
+              value={activeProject.labor_burden_pct}
+              onCommit={(v) => ws.updateProject({ labor_burden_pct: v })}
+            />
+            <Field
+              testId="small-tools-pct"
+              label="Small tools (%)"
+              percent
+              hint="Consumables — % of labor cost, typically 1–3"
+              value={activeProject.small_tools_pct}
+              onCommit={(v) => ws.updateProject({ small_tools_pct: v })}
+            />
+            <Field
+              testId="escalation-pct"
+              label="Escalation (%)"
+              percent
+              hint="Material price increases before purchase"
+              value={activeProject.escalation_pct}
+              onCommit={(v) => ws.updateProject({ escalation_pct: v })}
+            />
+            <Field
+              testId="contingency-pct"
+              label="Contingency (%)"
+              percent
+              hint="% of prime cost; gets overhead and profit"
+              value={activeProject.contingency_pct}
+              onCommit={(v) => ws.updateProject({ contingency_pct: v })}
+            />
+            <Field
               testId="overhead-pct"
               label="Overhead (%)"
               percent
@@ -223,6 +261,14 @@ export default function SummaryView() {
               percent
               value={activeProject.profit_pct}
               onCommit={(v) => ws.updateProject({ profit_pct: v })}
+            />
+            <Field
+              testId="bond-pct"
+              label="Bond (%)"
+              percent
+              hint="% of the FINAL bid price (circular calc)"
+              value={activeProject.bond_pct}
+              onCommit={(v) => ws.updateProject({ bond_pct: v })}
             />
             <button
               className="btn btn-volt mt-6 w-full justify-center"
@@ -254,6 +300,12 @@ export default function SummaryView() {
               {s.wastePct !== 0 && (
                 <Row label={`Waste (${s.wastePct}%)`} value={`$${fmt(s.wasteAmount)}`} />
               )}
+              {s.escalationPct !== 0 && (
+                <Row
+                  label={`Escalation (${s.escalationPct}%)`}
+                  value={`$${fmt(s.escalationAmount)}`}
+                />
+              )}
               {s.taxPct !== 0 && (
                 <Row label={`Sales tax (${s.taxPct}%)`} value={`$${fmt(s.salesTax)}`} />
               )}
@@ -268,16 +320,43 @@ export default function SummaryView() {
               <Row label="Labor hours total" value={`${fmt(s.laborHoursTotal)} hr`} />
               <Row
                 label={`Labor cost @ $${fmt(s.laborRate)}/hr`}
-                value={`$${fmt(s.laborCost)}`}
-                strong
+                value={`$${fmt(s.laborBareCost)}`}
+                strong={s.laborBurdenPct === 0}
               />
+              {s.laborBurdenPct !== 0 && (
+                <>
+                  <Row
+                    label={`Labor burden (${s.laborBurdenPct}%)`}
+                    value={`$${fmt(s.laborBurden)}`}
+                  />
+                  <Row label="Labor cost total" value={`$${fmt(s.laborCost)}`} strong />
+                </>
+              )}
+              {s.smallToolsPct !== 0 && (
+                <Row
+                  label={`Small tools (${s.smallToolsPct}% of labor)`}
+                  value={`$${fmt(s.smallTools)}`}
+                />
+              )}
               {s.directCostsWithOhp !== 0 && (
                 <Row
                   label="Direct costs (O&P applies)"
                   value={`$${fmt(s.directCostsWithOhp)}`}
                 />
               )}
+              {s.directCostTaxWithOhp !== 0 && (
+                <Row
+                  label={`Tax on direct costs (${s.taxPct}%, O&P applies)`}
+                  value={`$${fmt(s.directCostTaxWithOhp)}`}
+                />
+              )}
               <Row label="Prime cost" value={`$${fmt(s.primeCost)}`} strong />
+              {s.contingencyPct !== 0 && (
+                <Row
+                  label={`Contingency (${s.contingencyPct}%)`}
+                  value={`$${fmt(s.contingency)}`}
+                />
+              )}
               <Row label={`Overhead (${s.overheadPct}%)`} value={`$${fmt(s.overhead)}`} />
               <Row label="Subtotal" value={`$${fmt(s.subtotal)}`} />
               <Row label={`Profit (${s.profitPct}%)`} value={`$${fmt(s.profit)}`} />
@@ -286,6 +365,15 @@ export default function SummaryView() {
                   label="Direct costs (at cost, no O&P)"
                   value={`$${fmt(s.directCostsAtCost)}`}
                 />
+              )}
+              {s.directCostTaxAtCost !== 0 && (
+                <Row
+                  label={`Tax on direct costs (${s.taxPct}%, at cost)`}
+                  value={`$${fmt(s.directCostTaxAtCost)}`}
+                />
+              )}
+              {s.bondAmount !== 0 && (
+                <Row label={`Bond (${s.bondPct}%)`} value={`$${fmt(s.bondAmount)}`} />
               )}
               <div
                 className="mt-3 flex items-baseline justify-between bg-[var(--color-ink-800)] px-3 py-3"
@@ -334,6 +422,7 @@ export default function SummaryView() {
                     <th className="w-32">Category</th>
                     <th className="r w-28">Amount $</th>
                     <th className="w-20">O&amp;P</th>
+                    <th className="w-20">Tax</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -397,6 +486,23 @@ export default function SummaryView() {
                         </label>
                       </td>
                       <td>
+                        <label
+                          className="flex cursor-pointer items-center gap-1 text-[10.5px] text-[var(--color-fg-dim)]"
+                          title="Add sales tax at the project rate on top of this amount. Leave off when the quoted price already includes tax."
+                        >
+                          <input
+                            data-testid="direct-cost-taxable"
+                            type="checkbox"
+                            checked={c.taxable === true}
+                            aria-label={`Add sales tax on ${c.description || "direct cost"}`}
+                            onChange={(e) =>
+                              ws.upsertDirectCost({ ...c, taxable: e.target.checked })
+                            }
+                          />
+                          {c.taxable === true ? "tax added" : "tax incl."}
+                        </label>
+                      </td>
+                      <td>
                         <button
                           className="btn btn-danger !border-transparent !px-1 !py-0 text-xs"
                           aria-label={`Delete ${c.description || "direct cost"}`}
@@ -409,7 +515,7 @@ export default function SummaryView() {
                   ))}
                   {ws.directCosts.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-4 text-center text-[var(--color-fg-faint)]">
+                      <td colSpan={6} className="py-4 text-center text-[var(--color-fg-faint)]">
                         Gear quotes, lighting packages, subcontractors, permits, equipment
                         rental, bonds — anything not coming from takeoff.
                       </td>

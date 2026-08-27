@@ -91,10 +91,21 @@ normalises common spellings (`EACH`, `LF`, `SQFT`) and warns when a layer's
 tool disagrees with its item's unit — a count layer priced per foot is
 arithmetically valid and commercially wrong.
 
+## Commercial knobs beyond the core chain
+
+Now modelled (August 26, 2026), each as a project-level percentage with its
+place in the chain documented in `summarize()`'s comment in
+`src/lib/estimate.ts`: **labor burden** (% of bare labor cost, its own line),
+**small tools/consumables** (% of bare labor, carried in prime),
+**escalation** (% of material after waste, taxed), **contingency** (% of
+prime; overhead and profit apply), **bond** (% of the FINAL bid price — the
+standard circular calculation; >= 100% is a preflight blocker, never a
+clamp), and **sales tax on direct costs** (per-cost `taxable` flag, default
+off because quotes usually arrive tax-included; the tax follows the cost's
+own O&P treatment).
+
 ## Things that are NOT modelled yet
 
 Be honest about these rather than inventing behaviour:
-labor burden (payroll tax, insurance, fringe) as its own line; sales tax on
-quotes; bond as a percentage of the bid; small tools/consumables; escalation;
-contingency; crew mix and hours-to-duration; per-system recap; exclusion
-tracking. See [`09-roadmap.md`](09-roadmap.md).
+crew mix and hours-to-duration; per-system recap. Exclusion tracking is in
+progress via proposal entries. See [`09-roadmap.md`](09-roadmap.md).

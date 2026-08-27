@@ -171,6 +171,11 @@ export function generateLargeEstimateFixture(
     waste_pct: 5.0,
     tax_pct: 7.5,
     labor_factor_pct: 10.0,
+    labor_burden_pct: 0.0,
+    small_tools_pct: 0.0,
+    contingency_pct: 0.0,
+    escalation_pct: 0.0,
+    bond_pct: 0.0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   };

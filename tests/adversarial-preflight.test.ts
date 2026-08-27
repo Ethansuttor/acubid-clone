@@ -29,6 +29,11 @@ const baseProject: Project = {
   waste_pct: 0,
   tax_pct: 0,
   labor_factor_pct: 0,
+  labor_burden_pct: 0,
+  small_tools_pct: 0,
+  contingency_pct: 0,
+  escalation_pct: 0,
+  bond_pct: 0,
   created_at: "2026-08-25T00:00:00.000Z",
   updated_at: "2026-08-25T00:00:00.000Z",
 };

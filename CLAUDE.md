@@ -34,6 +34,12 @@ Concretely, and non-negotiably:
 - Before saying it works: `.ai/07-verification.md`. Skill: `voltline-verify`.
   Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run test:e2e`,
   `npm run bench`, and `npm run build`.
+- Before changing a table, column, or row shape: skill `schema-migration`.
+  One schema, several backends, one commit.
+- Before touching saving, loading, or sync: skill `durable-persistence`.
+- Working under `desktop/`: skill `desktop-shell`.
+- Post-award money (budgets, change orders, billing, WIP): skill
+  `job-cost-math`. Why each skill exists: `.ai/15-proposed-skills.md`.
 - Do the arithmetic by hand *before* writing the test. Twice a test
   expectation was wrong and the app was right.
 - Keep `.ai/` current: a new decision goes in `05`, a fixed bug in `06`. If a

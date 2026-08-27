@@ -27,10 +27,10 @@ Voltline runs as a **local-first application** by default:
 - `LOCAL_ONLY = true` is configured in `src/lib/local-config.ts`.
 - The local username is `1`; the password is intentionally empty. This is a
   development convenience, not production authentication.
-- `src/lib/localdb.ts` provides a browser `localStorage`-backed relational
-  client supporting all 10 project entities (`projects`, `documents`, `sheets`,
+- `src/lib/localdb.ts` provides an IndexedDB-backed relational client with an
+  append-only outbox, supporting all 11 project entities (`projects`, `documents`, `sheets`,
   `layers`, `takeoffs`, `items`, `assemblies`, `assembly_items`, `direct_costs`,
-  `bid_snapshots`).
+  `proposal_entries`, `bid_snapshots`). Legacy localStorage records migrate on first open.
 - Plan set PDF binaries are stored locally in the client storage layer.
 - Fast local authentication defaults to local estimator user profiles (`Estimator 1`)
   with zero external network dependencies.
@@ -42,6 +42,8 @@ deployment against a cloud PostgreSQL / Supabase backend:
 - `supabase/migrations/0001_schema.sql` (core relational schema and RLS policies).
 - `supabase/migrations/0002_bid_math.sql` (commercial bid math columns `waste_pct`,
   `tax_pct`, `labor_factor_pct`, `typical_multiplier`, and the `direct_costs` table).
+- `supabase/migrations/20260826142738_durable_bid_structure.sql` (proposal scope,
+  area/system/phase fields, and immutable bid snapshots with RLS and explicit grants).
 - When configuring a live Supabase environment, configure `NEXT_PUBLIC_SUPABASE_URL`
   and `NEXT_PUBLIC_SUPABASE_ANON_KEY` via secure environment variables. Never commit
   plaintext service role keys or user credentials into repository documentation or code.

@@ -83,6 +83,11 @@ describe("local data client", () => {
       layer_id: layerId,
     });
     await client.from("direct_costs").insert({ id: "cost-delete", project_id: projectId });
+    await client.from("proposal_entries").insert({
+      id: "scope-delete",
+      project_id: projectId,
+      kind: "inclusion",
+    });
     await client.from("bid_snapshots").insert({
       id: "snapshot-delete",
       project_id: projectId,
@@ -99,6 +104,7 @@ describe("local data client", () => {
       "layers",
       "takeoffs",
       "direct_costs",
+      "proposal_entries",
       "bid_snapshots",
     ]) {
       const result = await client.from(table).select("*");

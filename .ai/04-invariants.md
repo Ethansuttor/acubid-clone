@@ -86,16 +86,17 @@ No client component may import them.
 ## 8. Local-first architecture and persistence contract parity
 
 The active application operates in local-first mode (`LOCAL_ONLY = true` in
-`src/lib/local-config.ts`), backed by localStorage client storage (`src/lib/localdb.ts`).
+`src/lib/local-config.ts`), backed by IndexedDB plus an append-only local outbox
+(`src/lib/localdb.ts`). Legacy localStorage records are migrated on first open.
 All database calls go through the Supabase-shaped query builder contract,
 ensuring strict interface parity for future multi-tenant cloud sync without
 changing UI or store logic.
 
-## 9. Fail-closed workspace loading across all 10 entities
+## 9. Fail-closed workspace loading across all 11 entities
 
-`load(projectId)` in `src/store/workspace.ts` evaluates 10 parallel queries:
+`load(projectId)` in `src/store/workspace.ts` evaluates 11 parallel queries:
 `projects`, `documents`, `sheets`, `layers`, `takeoffs`, `items`, `assemblies`,
-`assembly_items`, `direct_costs`, and `bid_snapshots`.
+`assembly_items`, `direct_costs`, `proposal_entries`, and `bid_snapshots`.
 - If any single query returns an error or if the project record is missing,
   the workspace **fails closed**.
 - It zeroes all entity collections and sets `loadError`.

@@ -73,6 +73,11 @@ export function buildWorkbook(data: {
     laborFactorPct: project.labor_factor_pct ?? 0,
     overheadPct: project.overhead_pct,
     profitPct: project.profit_pct,
+    laborBurdenPct: project.labor_burden_pct ?? 0,
+    smallToolsPct: project.small_tools_pct ?? 0,
+    contingencyPct: project.contingency_pct ?? 0,
+    escalationPct: project.escalation_pct ?? 0,
+    bondPct: project.bond_pct ?? 0,
     directCosts,
   });
 
@@ -216,20 +221,24 @@ export function buildWorkbook(data: {
   rows.push(
     ["Material from takeoff ($)", money(summary.materialBase)],
     [`Waste (${summary.wastePct}%)`, money(summary.wasteAmount)],
+    [`Escalation (${summary.escalationPct}%)`, money(summary.escalationAmount)],
     [`Sales tax (${summary.taxPct}%)`, money(summary.salesTax)],
     ["Material total ($)", money(summary.materialTotal)],
     ["Labor hours from takeoff", money(summary.laborHoursBase)],
     [`Labor factor (${summary.laborFactorPct}%)`, money(summary.laborFactorHours)],
     ["Labor hours total", money(summary.laborHoursTotal)],
     ["Labor rate ($/hr)", summary.laborRate],
-    ["Labor cost ($)", money(summary.laborCost)]
+    ["Labor cost ($)", money(summary.laborBareCost)],
+    [`Labor burden (${summary.laborBurdenPct}%)`, money(summary.laborBurden)],
+    ["Labor cost total ($)", money(summary.laborCost)],
+    [`Small tools (${summary.smallToolsPct}% of labor)`, money(summary.smallTools)]
   );
 
   if (directCosts.length > 0) {
     rows.push(["", ""], ["DIRECT JOB COSTS", ""]);
     for (const dc of directCosts) {
       rows.push([
-        `   ${dc.description || "(unnamed)"} [${dc.category}${dc.ohp_applies ? "" : ", at cost"}]`,
+        `   ${dc.description || "(unnamed)"} [${dc.category}${dc.ohp_applies ? "" : ", at cost"}${dc.taxable === true ? ", +tax" : ""}]`,
         money(Number(dc.amount) || 0),
       ]);
     }
@@ -238,11 +247,15 @@ export function buildWorkbook(data: {
 
   rows.push(
     ["Direct costs with O&P ($)", money(summary.directCostsWithOhp)],
+    [`Tax on direct costs (O&P applies) ($)`, money(summary.directCostTaxWithOhp)],
     ["Prime cost ($)", money(summary.primeCost)],
+    [`Contingency (${summary.contingencyPct}%)`, money(summary.contingency)],
     [`Overhead (${summary.overheadPct}%)`, money(summary.overhead)],
     ["Subtotal ($)", money(summary.subtotal)],
     [`Profit (${summary.profitPct}%)`, money(summary.profit)],
     ["Direct costs at cost ($)", money(summary.directCostsAtCost)],
+    [`Tax on direct costs (at cost) ($)`, money(summary.directCostTaxAtCost)],
+    [`Bond (${summary.bondPct}% of bid) ($)`, money(summary.bondAmount)],
     ["BID PRICE ($)", money(summary.bidPrice)]
   );
 
