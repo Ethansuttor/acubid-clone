@@ -21,7 +21,7 @@ that produces a quantity or a dollar.
 
 - **Branch:** `claude/markdown-files-review-ad60sv` on
   `Ethansuttor/acubid-clone`. PR #1 and PR #2 are merged.
-- **Tests:** 165 unit tests across 9 files, 8 Playwright E2E tests in 7 specs.
+- **Tests:** 169 unit tests across 10 files, 8 Playwright E2E tests in 7 specs.
   All pass. Typecheck, lint and production build are clean.
 - **Database:** Supabase project `volt-takeoff` (`ulswnsdyxfrwvznyraqy`).
   Migrations `0001` and `0002` are applied and verified. **`0003` is written
@@ -33,7 +33,8 @@ that produces a quantity or a dollar.
   escalation, labor factor, burden, small tools, direct costs with per-row
   tax, contingency, overhead, profit, and a bond solved as a share of the bid
   price), Excel export, AI symbol auto-count with a review queue, AI
-  title-block reading.
+  title-block reading. Installable as a desktop app from Edge/Chrome
+  (a web manifest, no service worker — see [`05-decisions.md`](05-decisions.md)).
 - **Not yet verified against reality:** both AI features have only ever run
   against mocked responses. There is no `ANTHROPIC_API_KEY` in the dev
   environment and no real plan set has been used. Detection accuracy and

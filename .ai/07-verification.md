@@ -4,7 +4,7 @@ Run these before claiming anything works. Report what actually happened,
 including failures and their output.
 
 ```sh
-npm test                # 165 unit tests, 9 files  (~1s)
+npm test                # 169 unit tests, 10 files (~1s)
 npx tsc --noEmit        # typecheck
 npm run lint            # eslint flat config
 npx playwright test     # 8 E2E tests in 7 specs  (~31s)

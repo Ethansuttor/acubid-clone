@@ -87,6 +87,25 @@ items, assemblies, assemblyItems, directCosts, plus editor state.
 | `estimate/EstimateView.tsx` | Extended lines, rollup, issue banners. |
 | `estimate/SummaryView.tsx` | Rates, direct costs, bid summary, export. |
 
+## Installed-app shell
+
+`src/app/manifest.ts` is a Next metadata route serving
+`/manifest.webmanifest`, which is what makes Edge offer "Install this site as
+an app". `src/app/layout.tsx` exports `viewport.themeColor` (Next 16 takes it
+there, not on `metadata`) and `src/app/icon.png` is the favicon by file
+convention.
+
+Icons are generated, not hand-drawn: `node scripts/make-app-icons.mjs`
+renders one SVG definition through the pre-installed Chromium into
+`public/icon-192.png`, `public/icon-512.png`,
+`public/icon-maskable-512.png` and `src/app/icon.png`. Re-run it if the
+identity colours change. `tests/manifest.test.ts` asserts every declared icon
+exists at the size it claims, because a renamed icon fails silently — Edge
+just stops offering the install.
+
+There is deliberately no service worker. See
+[`05-decisions.md`](05-decisions.md).
+
 ## API routes (server-only)
 
 `src/app/api/autocount/route.ts` and `src/app/api/sheetinfo/route.ts`.

@@ -50,6 +50,31 @@ signs in. It is development-only by design: the AI routes only honour the
 local-mode auth bypass when `NODE_ENV !== "production"`, so setting the
 variable on a deployment cannot switch authentication off.
 
+## Installing it as a Windows app
+
+Voltline ships a web app manifest, so once it is deployed over HTTPS you can
+run it as a desktop app without packaging anything:
+
+1. Open the deployed URL in **Edge** (or Chrome).
+2. Menu **⋯ → Apps → Install this site as an app**, or the install icon in
+   the address bar.
+3. It gets its own window with no browser chrome, a Start-menu entry, and a
+   taskbar icon you can pin.
+
+That is a real window, not offline capability. The app still needs the
+network: plan PDFs live in Supabase storage and auth is Supabase. There is
+**no service worker on purpose** — caching would let an installed window run
+yesterday's estimating code against today's bid.
+
+A packaged Electron build was considered and deferred; the reasoning is in
+[`.ai/05-decisions.md`](.ai/05-decisions.md).
+
+To regenerate the icons after a change to the identity colours:
+
+```sh
+node scripts/make-app-icons.mjs   # renders one SVG through Playwright's Chromium
+```
+
 ## Workflow
 
 1. **Projects** — create a project on the home screen.
@@ -147,7 +172,7 @@ variable on a deployment cannot switch authentication off.
 
 ```sh
 npm test              # vitest: geometry, units, estimate math, bid math,
-                      #         CSV, drawing scales, excel, autocount
+                      #         CSV, drawing scales, excel, autocount, manifest
 npx playwright test   # E2E: every feature above, against a local-mode dev server
 ```
 

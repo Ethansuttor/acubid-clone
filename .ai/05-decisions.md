@@ -77,6 +77,34 @@ So they are carried through at face value. The E2E asserts the invariant by
 toggling one item and checking the bid moves by exactly
 `amount × (1+OH) × (1+profit) − amount`.
 
+**Installed as a PWA, not packaged as a desktop app — and deliberately no
+service worker.**
+The estimator wants a Windows app. `src/app/manifest.ts` plus the icons in
+`public/` make Edge offer "Install this site as an app", which gives a real
+window, a Start-menu entry and a taskbar icon for about an hour of work.
+
+Electron and Tauri were both considered and deferred, and Docker rejected
+outright (it packages a server, not a desktop app — the user would still open
+a browser at localhost). The reason to defer is not effort: every plan set is
+downloaded from the Supabase `plans` bucket (`src/lib/pdf.ts`) and auth is
+Supabase, so the app is cloud-backed end to end. Wrapping that in Electron
+buys a window, not independence — bid day on flaky wifi still fails. The
+version worth having (plans on local disk, works offline, syncs on reconnect)
+is a storage-and-sync project, not a packaging one. Tauri is a poor fit
+specifically: it has no Node, so it needs `output: "export"`, which would
+delete both AI API routes.
+
+If Electron does happen later, the one thing that keeps it small is invariant
+7 — `ANTHROPIC_API_KEY` is read only in the two route handlers. An Electron
+renderer *is* a browser, so the key moves to the main process behind IPC.
+Keep the key confined and that stays a small change.
+
+**No service worker** is a correctness decision, not an oversight. Offline
+caching would let an installed window run yesterday's estimating code against
+today's bid — the exact class of quietly-wrong-number failure this codebase
+exists to prevent. Installability does not require one; Chromium's
+`Page.getAppManifest` reports zero errors as it stands.
+
 **Local mode (`NEXT_PUBLIC_LOCAL_MODE=1`).**
 The dev sandbox blocks egress to `supabase.co` by network policy, so E2E
 could not run against the real database. Rather than mock at the component
