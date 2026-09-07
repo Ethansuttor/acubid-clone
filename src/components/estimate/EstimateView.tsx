@@ -34,13 +34,13 @@ export default function EstimateView() {
           className="border-b-2 border-[var(--color-danger)] bg-[color-mix(in_srgb,var(--color-danger)_12%,transparent)] px-4 py-2 text-xs text-[var(--color-danger)]"
           role="alert"
         >
-          <div className="mb-1 font-mono text-[10.5px] uppercase tracking-widest">
+          <div className="mb-1 text-[11px] font-semibold">
             Quantity missing from this bid
           </div>
           {missing.map((iss) => (
             <div key={`${iss.layerId}-${iss.kind}`} data-testid="estimate-issue">
               <span className="font-semibold">{iss.layerName}</span>
-              {iss.quantity > 0 && <span className="num"> ({fmtQty(iss.quantity)})</span>} —{" "}
+              {iss.quantity > 0 && <span className="num"> ({fmtQty(iss.quantity)})</span>}:{" "}
               {iss.detail}
             </div>
           ))}
@@ -52,12 +52,12 @@ export default function EstimateView() {
           role="status"
           aria-live="polite"
         >
-          <div className="mb-1 font-mono text-[10.5px] uppercase tracking-widest">
+          <div className="mb-1 text-[11px] font-semibold">
             Check these
           </div>
           {warnings.map((iss) => (
             <div key={`${iss.layerId}-${iss.kind}`} data-testid="estimate-warning">
-              <span className="font-semibold">{iss.layerName}</span> — {iss.detail}
+              <span className="font-semibold">{iss.layerName}</span>: {iss.detail}
             </div>
           ))}
         </div>
@@ -88,7 +88,7 @@ export default function EstimateView() {
                         <>
                           {l.layerName}
                           {l.assembly && (
-                            <span className="ml-1 text-[10px] text-[var(--color-ai)]">
+                            <span className="ml-1 text-[10px] text-[var(--color-pending)]">
                               {l.assembly.name}
                             </span>
                           )}

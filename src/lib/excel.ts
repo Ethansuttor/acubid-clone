@@ -4,6 +4,7 @@
 
 import ExcelJS from "exceljs";
 import {
+  bidBreakdown,
   countableTakeoffs,
   estimateTotals,
   extendEstimate,
@@ -11,6 +12,7 @@ import {
   materialRollup,
   money,
   summarize,
+  type BreakdownDimension,
   type EstimateSummary,
 } from "./estimate";
 import { takeoffQuantity } from "./geometry";
@@ -65,7 +67,7 @@ export function buildWorkbook(data: {
   const { lines, issues } = extendEstimate(quantities, items, assemblies, assemblyItems);
   const rollup = materialRollup(lines);
   const totals = estimateTotals(lines);
-  const summary = summarize({
+  const summaryInput = {
     ...totals,
     laborRate: project.labor_rate,
     wastePct: project.waste_pct ?? 0,
@@ -79,7 +81,8 @@ export function buildWorkbook(data: {
     escalationPct: project.escalation_pct ?? 0,
     bondPct: project.bond_pct ?? 0,
     directCosts,
-  });
+  };
+  const summary = summarize(summaryInput);
 
   const wb = new ExcelJS.Workbook();
   wb.creator = "Voltline";
@@ -186,6 +189,61 @@ export function buildWorkbook(data: {
   labTotal.font = { bold: true };
   lab.getColumn("unitHr").numFmt = "#,##0.000";
   lab.getColumn("ext").numFmt = "#,##0.00";
+
+  // --- Breakdown --------------------------------------------------------------
+  // Bid split by the area/system/phase tags on each layer, for bid leveling and
+  // scope letters. A dimension nobody has tagged would render as a single
+  // "Unassigned = 100%" block, so it is omitted rather than padded out.
+  const BREAKDOWN_DIMENSIONS: BreakdownDimension[] = ["system", "area", "phase"];
+  const taggedDimensions = BREAKDOWN_DIMENSIONS.filter((d) =>
+    layers.some((l) => (l[d] ?? "").trim() !== "")
+  );
+  if (taggedDimensions.length > 0) {
+    const bd = wb.addWorksheet("Breakdown");
+    bd.getColumn(1).width = 28;
+    for (const i of [2, 3, 4, 5, 6]) bd.getColumn(i).width = 15;
+    for (const dimension of taggedDimensions) {
+      const breakdown = bidBreakdown(lines, layers, summaryInput, dimension);
+      const title = bd.addRow([`BID BY ${dimension.toUpperCase()}`]);
+      title.font = { bold: true, size: 12 };
+      // Same rule as the app: a breakdown that does not add up to the bid is
+      // withheld, not printed beside a total it contradicts.
+      if (!breakdown.reconciles) {
+        const bad = bd.addRow([
+          `!! Breakdown withheld: parts differ from the bid price by ${money(
+            Math.abs(breakdown.reconciliationError)
+          )}`,
+        ]);
+        bad.font = { bold: true, color: { argb: "FFC00000" } };
+        bd.addRow([]);
+        continue;
+      }
+      styleHeader(
+        bd.addRow([
+          dimension.replace(/^./, (c) => c.toUpperCase()),
+          "Material",
+          "Hours",
+          "Labor",
+          "Share of bid",
+          "% of bid",
+        ])
+      );
+      for (const g of breakdown.groups) {
+        bd.addRow([
+          g.label,
+          money(g.materialTotal),
+          money(g.laborHoursTotal),
+          money(g.laborCost),
+          money(g.bidPrice),
+          money(g.pctOfBid),
+        ]);
+      }
+      const totalRow = bd.addRow(["BID PRICE", "", "", "", money(breakdown.allocated), 100]);
+      totalRow.font = { bold: true };
+      bd.addRow([]);
+    }
+    for (const i of [2, 3, 4, 5, 6]) bd.getColumn(i).numFmt = "#,##0.00";
+  }
 
   // --- Summary ------------------------------------------------------------------
   // No sum.columns here: ExcelJS would emit an (empty) header row and shift

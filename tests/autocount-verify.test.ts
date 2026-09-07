@@ -31,15 +31,14 @@ describe("GA-6: Verification response parser and confidence blend", () => {
     expect(results[2]).toEqual({ index: 3, match: true, confidence: 0.88 });
   });
 
-  it("handles alternative field names ('index', 'match': 'true')", () => {
+  it("accepts alternative index fields but refuses guessed boolean or confidence values", () => {
     const raw = JSON.stringify([
       { index: 10, match: "true", confidence: 0.92 },
       { index: 11, match: "false" },
     ]);
     const results = parseVerificationResults(raw);
-    expect(results).toHaveLength(2);
-    expect(results[0]).toEqual({ index: 10, match: true, confidence: 0.92 });
-    expect(results[1]).toEqual({ index: 11, match: false, confidence: 0.1 });
+    expect(results).toEqual([]);
+    expect(parseVerificationResults('[{"index":10,"match":true,"confidence":0.92}]')).toEqual([{ index: 10, match: true, confidence: 0.92 }]);
   });
 
   it("tolerates markdown code fences and surrounding commentary", () => {

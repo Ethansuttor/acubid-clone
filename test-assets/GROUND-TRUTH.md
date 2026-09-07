@@ -44,8 +44,14 @@ the detector picked up the legend.
    scale proposal should equal the manual calibration.
 3. Calibrate E-101 manually from the 100'-0" dimension; the two methods
    should agree.
-4. Make a count layer "Receptacles", run AI auto-count, review the pending
+4. Make a count layer "Receptacles", run local symbol search, review the pending
    queue, compare accepted count to **27**.
 5. Repeat on E-102 for troffers (**50**) and switches (**9**).
 6. Link layers to priced items and confirm the estimate extends
    (e.g. 27 × item cost, to the cent).
+
+This is synthetic ground truth. Local symbol search needs no API key. Sheet
+analysis requires the optional provider service and human confirmation; a mocked
+response tests the workflow but does not validate live title-block accuracy.
+Real-plan acceptance is specified in
+[the evaluation packet](../.ai/17-autocount-accuracy-plan.md).

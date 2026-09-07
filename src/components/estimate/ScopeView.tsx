@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FileText, Layers3, Plus, Printer, Trash2 } from "lucide-react";
+import { AlertTriangle, FileText, Layers3, Plus, Printer, Trash2 } from "lucide-react";
 import { estimateTotals, extendEstimate, layerQuantities, summarize } from "@/lib/estimate";
+import { bidPreflight } from "@/lib/preflight";
 import { fmt, parseNumericInput } from "@/lib/units";
 import { useWorkspace } from "@/store/workspace";
 import type { ProposalEntry, ProposalEntryKind } from "@/lib/types";
@@ -14,11 +15,16 @@ export default function ScopeView() {
   const project = ws.project;
   const [activeKind, setActiveKind] = useState<ProposalEntryKind>("inclusion");
 
-  const bidPrice = useMemo(() => {
-    if (!project) return 0;
+  const estimate = useMemo(() => {
+    if (!project) return null;
     const quantities = layerQuantities(ws.layers, ws.takeoffs, ws.sheets);
-    const { lines } = extendEstimate(quantities, ws.items, ws.assemblies, ws.assemblyItems);
-    return summarize({
+    const { lines, issues } = extendEstimate(
+      quantities,
+      ws.items,
+      ws.assemblies,
+      ws.assemblyItems
+    );
+    const summary = summarize({
       ...estimateTotals(lines),
       laborRate: project.labor_rate,
       wastePct: project.waste_pct,
@@ -32,10 +38,38 @@ export default function ScopeView() {
       escalationPct: project.escalation_pct,
       bondPct: project.bond_pct,
       directCosts: ws.directCosts,
-    }).bidPrice;
-  }, [project, ws.layers, ws.takeoffs, ws.sheets, ws.items, ws.assemblies, ws.assemblyItems, ws.directCosts]);
+    });
+    return {
+      bidPrice: summary.bidPrice,
+      preflight: bidPreflight({
+        project,
+        sheets: ws.sheets,
+        layers: ws.layers,
+        takeoffs: ws.takeoffs,
+        lines,
+        issues,
+        summary,
+        directCosts: ws.directCosts,
+        pendingWrites: ws.pendingWrites,
+        saveState: ws.saveState,
+      }),
+    };
+  }, [
+    project,
+    ws.sheets,
+    ws.layers,
+    ws.takeoffs,
+    ws.items,
+    ws.assemblies,
+    ws.assemblyItems,
+    ws.directCosts,
+    ws.pendingWrites,
+    ws.saveState,
+  ]);
 
-  if (!project || !ws.userId) return null;
+  if (!project || !ws.userId || !estimate) return null;
+
+  const { bidPrice, preflight } = estimate;
 
   function addEntry(kind: ProposalEntryKind) {
     const entry: ProposalEntry = {
@@ -55,22 +89,59 @@ export default function ScopeView() {
   const activeEntries = ws.proposalEntries.filter((entry) => entry.kind === activeKind);
   return (
     <div className="blueprint h-full overflow-auto">
-      <div className="mx-auto max-w-6xl px-6 py-8">
+      <div className="mx-auto max-w-[1400px] px-5 py-5">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="eyebrow">Bid structure</div>
-            <h1 className="mt-1 text-xl font-semibold tracking-tight">Scope and proposal</h1>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--color-fg-dim)]">
-              Organize takeoff by area, system, and phase, then write the commercial scope that
-              travels with the base bid.
-            </p>
+            <h1 className="text-lg font-semibold tracking-[-0.02em]">Scope and proposal</h1>
           </div>
-          <button className="btn" type="button" onClick={() => window.print()}>
-            <Printer size={14} /> Print proposal
+          <button
+            className="btn"
+            type="button"
+            onClick={() => {
+              if (preflight.ready) window.print();
+            }}
+            disabled={!preflight.ready}
+            aria-describedby={!preflight.ready ? "proposal-print-gate" : undefined}
+            data-testid="print-proposal-btn"
+          >
+            <Printer size={14} />
+            {preflight.ready ? "Print proposal" : "Resolve blockers to print"}
           </button>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
+        {!preflight.ready && (
+          <section
+            id="proposal-print-gate"
+            className="proposal-print panel mb-5 border-l-2 !border-l-[var(--color-danger)] bg-white px-5 py-4 text-slate-950"
+            role="alert"
+            aria-labelledby="proposal-print-gate-heading"
+            data-testid="proposal-print-gate"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 shrink-0 text-[var(--color-danger)]" size={18} />
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--color-danger)]">
+                  Not ready to issue
+                </div>
+                <h2 id="proposal-print-gate-heading" className="mt-1 text-sm font-semibold">
+                  Proposal printing is blocked
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  {project.name} has {preflight.blockers.length}{" "}
+                  {preflight.blockers.length === 1 ? "bid blocker" : "bid blockers"}. Resolve
+                  them in Summary before printing or issuing this proposal.
+                </p>
+                <ul className="mt-3 list-disc space-y-1 pl-4 text-xs text-slate-700">
+                  {preflight.blockers.map((blocker) => (
+                    <li key={blocker.id}>{blocker.title}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.62fr)]">
           <div className="min-w-0 space-y-5 print:hidden">
             <section className="panel overflow-hidden" aria-labelledby="breakdown-heading">
               <div className="titlebar flex items-center gap-2 px-3 py-2" id="breakdown-heading">
@@ -141,7 +212,12 @@ export default function ScopeView() {
             </section>
           </div>
 
-          <ProposalPreview projectName={project.name} bidPrice={bidPrice} entries={ws.proposalEntries} />
+          <ProposalPreview
+            projectName={project.name}
+            bidPrice={bidPrice}
+            entries={ws.proposalEntries}
+            printable={preflight.ready}
+          />
         </div>
       </div>
     </div>
@@ -171,7 +247,7 @@ function ProposalEntryEditor({ entry }: { entry: ProposalEntry }) {
         />
       </div>
       {showAmount ? (
-        <label className="text-[10px] uppercase tracking-wide text-[var(--color-fg-faint)]">
+        <label className="text-[11px] text-[var(--color-fg-dim)]">
           Reference amount
           <input
             className="input input-num mt-1"
@@ -196,13 +272,19 @@ function ProposalPreview({
   projectName,
   bidPrice,
   entries,
+  printable,
 }: {
   projectName: string;
   bidPrice: number;
   entries: ProposalEntry[];
+  printable: boolean;
 }) {
   return (
-    <article className="proposal-print panel self-start bg-white p-7 text-slate-950 shadow-xl" aria-labelledby="proposal-preview-heading">
+    <article
+      className={`${printable ? "proposal-print " : ""}panel self-start bg-white p-7 text-slate-950 shadow-xl`}
+      aria-labelledby="proposal-preview-heading"
+      data-testid="proposal-preview"
+    >
       <div className="border-b-2 border-slate-900 pb-5">
         <div className="text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Voltline proposal</div>
         <h2 id="proposal-preview-heading" className="mt-2 text-2xl font-bold">{projectName}</h2>

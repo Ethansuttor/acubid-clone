@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  Archive,
+  ArchiveRestore,
   Clock3,
   Folder,
   LogOut,
@@ -35,6 +37,7 @@ export default function ProjectsPage() {
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -54,9 +57,15 @@ export default function ProjectsPage() {
 
   const visibleProjects = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return projects ?? [];
-    return (projects ?? []).filter((project) => project.name.toLowerCase().includes(normalized));
-  }, [projects, query]);
+    return (projects ?? []).filter((project) => !!project.archived_at === showArchived && project.name.toLowerCase().includes(normalized));
+  }, [projects, query, showArchived]);
+
+  async function archiveProject(project: Project) {
+    const archived_at = project.archived_at ? null : new Date().toISOString();
+    const { error } = await supabase().from("projects").update({ archived_at }).eq("id", project.id);
+    if (error) { setError(`Could not ${archived_at ? "archive" : "restore"} “${project.name}”.`); return; }
+    setProjects(current => (current ?? []).map(item => item.id === project.id ? { ...item, archived_at } : item));
+  }
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault();
@@ -132,8 +141,7 @@ export default function ProjectsPage() {
           <span className="brand-name">Voltline</span>
         </div>
 
-        <nav className="mt-5 px-3" aria-label="Primary">
-          <div className="sidebar-label">Workspace</div>
+        <nav className="mt-3 px-3" aria-label="Primary">
           <button className="sidebar-link active" type="button">
             <Folder size={17} />
             Projects
@@ -141,71 +149,49 @@ export default function ProjectsPage() {
           </button>
         </nav>
 
-        <div className="mt-auto p-3">
-          <DataProtectionCard />
-          <div className="user-row">
-            <span className="user-avatar" aria-hidden="true">1</span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">Estimator 1</div>
-              <div className="text-xs text-[var(--color-fg-dim)]">Local user</div>
-            </div>
-            <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out" title="Sign out">
-              <LogOut size={16} />
-            </button>
-          </div>
+        <div className="sidebar-foot">
+          <span className="status-pill status-pill-success">
+            <span className="status-dot" /> Local mode
+          </span>
+          <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out" title="Sign out">
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
 
       <main className="dashboard-main">
         <header className="dashboard-header">
-          <div>
-            <div className="eyebrow">Bid workspace</div>
-            <h1 className="mt-1 text-2xl font-semibold tracking-[-0.03em]">Projects</h1>
-            <p className="mt-1 text-sm text-[var(--color-fg-dim)]">
-              Start a bid or return to an estimate already in progress.
-            </p>
-          </div>
-          <span className="status-pill status-pill-success">
-            <span className="status-dot" /> Local mode
-          </span>
+          <h1 className="text-xl font-semibold tracking-[-0.02em]">Projects</h1>
+          <form onSubmit={createProject} className="create-project-form">
+            <label className="sr-only" htmlFor="new-project-name">Project name</label>
+            <input
+              id="new-project-name"
+              className="input h-9"
+              placeholder="New project name…"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="off"
+            />
+            <button className="btn btn-volt h-9 shrink-0" type="submit" disabled={!name.trim() || busy}>
+              <Plus size={15} />
+              {busy ? "Creating…" : "Create project"}
+            </button>
+          </form>
         </header>
 
         <div className="dashboard-content">
-          <section className="create-project-card" aria-labelledby="create-project-title">
-            <div className="create-project-copy">
-              <span className="feature-icon" aria-hidden="true"><Plus size={18} /></span>
-              <div>
-                <h2 id="create-project-title" className="text-sm font-semibold">Create a project</h2>
-                <p className="mt-1 text-xs text-[var(--color-fg-dim)]">A blank estimate with takeoff, pricing, and summary tools.</p>
-              </div>
-            </div>
-            <form onSubmit={createProject} className="create-project-form">
-              <label className="sr-only" htmlFor="new-project-name">Project name</label>
-              <input
-                id="new-project-name"
-                className="input h-10"
-                placeholder="New project name…"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="off"
-              />
-              <button className="btn btn-volt h-10 shrink-0" type="submit" disabled={!name.trim() || busy}>
-                <Plus size={16} />
-                {busy ? "Creating…" : "Create project"}
-              </button>
-            </form>
-          </section>
+          {error && <div className="form-error mb-4" role="alert">{error}</div>}
 
-          {error && <div className="form-error mt-4" role="alert">{error}</div>}
-
+          <div className="dashboard-columns">
           <section className="projects-panel" aria-labelledby="project-list-title">
             <div className="projects-toolbar">
-              <div>
-                <h2 id="project-list-title" className="text-sm font-semibold">Recent projects</h2>
-                <p className="mt-1 text-xs text-[var(--color-fg-dim)]">
-                  {projects === null ? "Loading…" : `${projects.length} ${projects.length === 1 ? "project" : "projects"}`}
-                </p>
-              </div>
+              <h2 id="project-list-title" className="text-sm font-semibold">
+                {showArchived ? "Archived projects" : "Recent projects"}
+                <span className="num ml-2 text-xs font-normal text-[var(--color-fg-faint)]">
+                  {projects === null ? "…" : projects.length}
+                </span>
+              </h2>
+              <button className="btn ml-auto text-xs" onClick={() => setShowArchived(value => !value)}>{showArchived ? "Show active projects" : "Show archived projects"}</button>
               <div className="search-field">
                 <Search size={15} aria-hidden="true" />
                 <label className="sr-only" htmlFor="project-search">Search projects</label>
@@ -224,12 +210,11 @@ export default function ProjectsPage() {
               </div>
             ) : visibleProjects.length === 0 ? (
               <div className="empty-state">
-                <span className="empty-state-icon"><Folder size={20} /></span>
-                <h3 className="mt-4 text-sm font-semibold">
-                  {query ? "No matching projects" : "No projects yet"}
+                <h3 className="text-sm font-semibold">
+                  {query ? "No matching projects" : showArchived ? "No archived projects" : "No projects yet"}
                 </h3>
                 <p className="mt-1 max-w-sm text-xs leading-5 text-[var(--color-fg-dim)]">
-                  {query ? "Try a different project name." : "Name your first project above to open the estimating workspace."}
+                  {query ? "No name matches that search." : showArchived ? "Archived bids stay here until you restore or delete them." : "Name a project above to start."}
                 </p>
               </div>
             ) : (
@@ -248,14 +233,10 @@ export default function ProjectsPage() {
                       <tr key={project.id} onDoubleClick={() => router.push(`/project/${project.id}`)}>
                         <td>
                           <button className="project-name" onClick={() => router.push(`/project/${project.id}`)}>
-                            <span className="project-folder"><Folder size={16} /></span>
-                            <span>
-                              <span className="block font-medium text-[var(--color-fg)]">{project.name}</span>
-                              <span className="mt-0.5 block text-xs text-[var(--color-fg-dim)]">Electrical estimate</span>
-                            </span>
+                            <span className="font-medium text-[var(--color-fg)]">{project.name}</span>
                           </button>
                         </td>
-                        <td><span className="status-pill status-pill-neutral">Draft</span></td>
+                        <td><span className="status-pill status-pill-neutral">{project.archived_at ? "Archived" : "Active"}</span></td>
                         <td>
                           <span className="inline-flex items-center gap-2 text-xs text-[var(--color-fg-dim)]">
                             <Clock3 size={14} /> {formatUpdated(project.updated_at)}
@@ -266,9 +247,12 @@ export default function ProjectsPage() {
                             <button className="icon-button" onClick={() => router.push(`/project/${project.id}`)} aria-label={`Open ${project.name}`} title="Open project">
                               <ArrowUpRight size={16} />
                             </button>
-                            <button className="icon-button danger" onClick={() => deleteProject(project)} aria-label={`Delete ${project.name}`} title="Delete project">
-                              <Trash2 size={15} />
+                            <button className="icon-button" onClick={() => archiveProject(project)} aria-label={`${project.archived_at ? "Restore" : "Archive"} ${project.name}`} title={project.archived_at ? "Restore project" : "Archive project"}>
+                              {project.archived_at ? <ArchiveRestore size={15} /> : <Archive size={15} />}
                             </button>
+                            {project.archived_at && <button className="icon-button danger" onClick={() => deleteProject(project)} aria-label={`Delete ${project.name}`} title="Permanently delete project">
+                              <Trash2 size={15} />
+                            </button>}
                           </div>
                         </td>
                       </tr>
@@ -278,6 +262,8 @@ export default function ProjectsPage() {
               </div>
             )}
           </section>
+          <DataProtectionCard />
+          </div>
         </div>
       </main>
     </div>

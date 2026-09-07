@@ -189,7 +189,7 @@ function LayerEditor({ layer }: { layer: Layer }) {
       </select>
       <div className="grid grid-cols-3 gap-1">
         {(["area", "system", "phase"] as const).map((dimension) => (
-          <label key={dimension} className="text-[10px] uppercase tracking-wide text-[var(--color-fg-faint)]">
+          <label key={dimension} className="text-[11px] capitalize text-[var(--color-fg-dim)]">
             {dimension}
             <input
               className="input mt-0.5 !px-1.5 !py-1 text-[11px] normal-case tracking-normal"

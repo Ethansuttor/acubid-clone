@@ -95,13 +95,13 @@ test("bid math: typical multiplier, waste, tax, labor factor, direct costs", asy
   await page.click("button.tab >> text=summary");
 
   await page.click('button:has-text("+ Cost")');
-  const row1 = page.locator("table tbody tr").first();
+  const row1 = page.getByTestId("direct-cost-row").first();
   await row1.locator('input[placeholder^="e.g."]').fill("Switchgear quote");
   await row1.locator("input.input-num").fill("5000");
   await row1.locator("input.input-num").blur();
 
   await page.click('button:has-text("+ Cost")');
-  const row2 = page.locator("table tbody tr").nth(1);
+  const row2 = page.getByTestId("direct-cost-row").nth(1);
   await row2.locator('input[placeholder^="e.g."]').fill("Permit");
   await row2.locator("input.input-num").fill("500");
   await row2.locator("input.input-num").blur();

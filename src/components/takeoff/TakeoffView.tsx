@@ -11,7 +11,7 @@ import {
   Redo2,
   Route,
   ScanLine,
-  Sparkles,
+  ScanSearch,
   Undo2,
   type LucideIcon,
 } from "lucide-react";
@@ -27,12 +27,13 @@ const TOOLS: { id: EditorTool; label: string; key: string; icon: LucideIcon }[] 
   { id: "linear", label: "Linear", key: "L", icon: Route },
   { id: "area", label: "Area", key: "A", icon: Pentagon },
   { id: "calibrate", label: "Scale", key: "K", icon: ScanLine },
-  { id: "aibox", label: "AI Count", key: "B", icon: Sparkles },
+  { id: "aibox", label: "Auto count", key: "B", icon: ScanSearch },
 ];
 
 export default function TakeoffView() {
   const ws = useWorkspace();
   const [aiRequest, setAiRequest] = useState<AiBoxRect | null>(null);
+  const activeTool = TOOLS.find((t) => t.id === ws.tool) ?? TOOLS[0];
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {
@@ -78,31 +79,57 @@ export default function TakeoffView() {
 
       <main className="relative flex min-w-0 flex-1 flex-col">
         <div className="tool-strip">
-          {TOOLS.map((t) => {
-            const Icon = t.icon;
-            return (
-            <button
-              key={t.id}
-              className={`btn tool-button !py-1 text-xs ${ws.tool === t.id ? "active" : ""} ${
-                t.id === "aibox" ? "ai" : ""
-              }`}
-              onClick={() => ws.setTool(t.id)}
-              title={`${t.label} (${t.key})`}
-              aria-label={`${t.label} tool (${t.key})`}
-              aria-pressed={ws.tool === t.id}
-            >
-              <Icon size={15} />
-              {t.label} <span className="kbd">{t.key}</span>
+          <div className="tool-group" role="group" aria-label="Measurement tools">
+            {TOOLS.filter((t) => t.id !== "aibox").map((t) => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="tool-btn"
+                  onClick={() => ws.setTool(t.id)}
+                  title={`${t.label} (${t.key})`}
+                  aria-label={`${t.label} tool (${t.key})`}
+                  aria-pressed={ws.tool === t.id}
+                >
+                  <Icon size={15} />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="tool-group" role="group" aria-label="Assisted tools">
+            {TOOLS.filter((t) => t.id === "aibox").map((t) => {
+              const Icon = t.icon;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="tool-btn"
+                  onClick={() => ws.setTool(t.id)}
+                  title={`${t.label} (${t.key})`}
+                  aria-label={`${t.label} tool (${t.key})`}
+                  aria-pressed={ws.tool === t.id}
+                >
+                  <Icon size={15} />
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="tool-group" role="group" aria-label="History">
+            <button type="button" className="tool-btn" onClick={ws.undo} disabled={ws.undoStack.length === 0} title="Undo (Ctrl+Z)" aria-label="Undo">
+              <Undo2 size={15} />
             </button>
-            );
-          })}
-          <div className="tool-divider" />
-          <button className="btn !py-1 text-xs" onClick={ws.undo} disabled={ws.undoStack.length === 0} title="Undo (Ctrl+Z)">
-            <Undo2 size={15} /> Undo
-          </button>
-          <button className="btn !py-1 text-xs" onClick={ws.redo} disabled={ws.redoStack.length === 0} title="Redo (Ctrl+Shift+Z)">
-            <Redo2 size={15} /> Redo
-          </button>
+            <button type="button" className="tool-btn" onClick={ws.redo} disabled={ws.redoStack.length === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+              <Redo2 size={15} />
+            </button>
+          </div>
+
+          <span className="tool-readout" aria-live="polite">
+            {activeTool.label}
+            <span className="kbd">{activeTool.key}</span>
+          </span>
         </div>
 
         <div className="min-h-0 flex-1">

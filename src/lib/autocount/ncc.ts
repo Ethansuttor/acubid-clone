@@ -202,9 +202,12 @@ export function matchTemplate(
       const idx = v * tplW + u;
       const zm = tplZeroMean[idx];
       const offset = v * imgW + u;
-      if (zm < -10) {
+      // Classify relative to the mean without absolute contrast cutoffs.
+      // Sparse symbols put white pixels very close to the mean; excluding
+      // those pixels leaves an all-dark, zero-variance sample and no matches.
+      if (zm < 0) {
         darkPoints.push({ offset, val: zm });
-      } else if (zm > 5) {
+      } else if (zm > 0) {
         lightPoints.push({ offset, val: zm });
       }
     }
@@ -310,26 +313,13 @@ export function matchTemplate(
     return s;
   }
 
-  // 2-step scanning:
-  // Step 1: Scan grid at step 2 for candidates >= minScore - 0.25
-  // Step 2: Refine candidate neighborhood at step 1
-  const step = 2;
-  const coarseCutoff = Math.max(0.3, minScore - 0.25);
-
-  for (let y = 0; y < scoreH; y += step) {
-    for (let x = 0; x < scoreW; x += step) {
-      const s = evalScoreAt(x, y);
-      if (s >= coarseCutoff) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const ny = y + dy;
-          if (ny < 0 || ny >= scoreH) continue;
-          for (let dx = -1; dx <= 1; dx++) {
-            const nx = x + dx;
-            if (nx < 0 || nx >= scoreW) continue;
-            evalScoreAt(nx, ny);
-          }
-        }
-      }
+  // Evaluate every alignment. Thin linework can have near-zero correlation
+  // just one pixel away from a perfect match; a stride-2 proposal grid silently
+  // missed odd/odd positions, even with neighborhood refinement. Integral
+  // variance checks still reject uniform windows before sampling feature points.
+  for (let y = 0; y < scoreH; y++) {
+    for (let x = 0; x < scoreW; x++) {
+      evalScoreAt(x, y);
     }
   }
 

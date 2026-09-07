@@ -6,6 +6,7 @@
 
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { replaceLocalAssemblyItems } from "@/lib/localdb";
 import {
   estimateTotals,
   extendEstimate,
@@ -105,7 +106,9 @@ interface WorkspaceState {
 // Persistence query builders execute lazily on await, so queueing the builder
 // (or a thunk) defers the actual operation until its turn.
 let writeQueue: Promise<unknown> = Promise.resolve();
+export function waitForWorkspaceWrites(): Promise<unknown> { return writeQueue; }
 let snapshotWriteInProgress = false;
+let loadGeneration = 0;
 
 function errorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -223,7 +226,10 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     saveError: null,
 
     async load(projectId) {
+      const generation = ++loadGeneration;
       set(() => ({ loaded: false, loadError: null }));
+      await writeQueue;
+      if (generation !== loadGeneration) return;
       const db = supabase();
       const { data: auth } = await db.auth.getUser();
       const userId = auth.user?.id ?? null;
@@ -257,6 +263,10 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
             .order("revision", { ascending: false }),
         ]);
 
+      // React can start a second load before the first completes. Only the
+      // latest load may publish state, otherwise freshly edited catalog rows
+      // can be replaced by an older query result.
+      if (generation !== loadGeneration) return;
       const requiredResults = [
         ["project", project],
         ["documents", documents],
@@ -591,12 +601,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       set((s) => ({
         assemblyItems: [...s.assemblyItems.filter((ai) => ai.assembly_id !== assemblyId), ...rows],
       }));
-      const db = supabase();
-      track(set, async () => {
-        const del = await db.from("assembly_items").delete().eq("assembly_id", assemblyId);
-        if (del.error) return del;
-        return rows.length ? await db.from("assembly_items").insert(rows) : { error: null };
-      });
+      track(set, () => replaceLocalAssemblyItems(assemblyId, rows));
     },
   };
 });

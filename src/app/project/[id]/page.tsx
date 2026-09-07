@@ -20,6 +20,8 @@ import DatabaseView from "@/components/estimate/DatabaseView";
 import EstimateView from "@/components/estimate/EstimateView";
 import SummaryView from "@/components/estimate/SummaryView";
 import ScopeView from "@/components/estimate/ScopeView";
+import EstimateSetup from "@/components/EstimateSetup";
+import WorkspaceAccess from "@/components/WorkspaceAccess";
 
 const TABS = [
   { id: "takeoff", icon: FileStack },
@@ -31,6 +33,10 @@ const TABS = [
 type Tab = (typeof TABS)[number]["id"];
 
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  return <WorkspaceAccess><ProjectWorkspace params={params} /></WorkspaceAccess>;
+}
+
+function ProjectWorkspace({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const ws = useWorkspace();
@@ -70,7 +76,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  if (!ws.loaded || !ws.project) {
+  if (!ws.loaded || !ws.project || ws.project.id !== id) {
     return (
       <div className="workspace-loading" role="status" aria-live="polite" aria-busy="true">
         <span className="brand-mark" aria-hidden="true"><Zap size={18} /></span>
@@ -85,10 +91,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="workspace-shell">
       <header className="workspace-header">
-        <Link href="/" className="icon-button" aria-label="Back to projects" title="Back to projects">
+        <Link href="/" className="icon-button" aria-label="Back to projects" title={ws.saveState !== "saved" ? "Wait for all changes to save before leaving" : "Back to projects"} aria-disabled={ws.saveState !== "saved"} onClick={event => { if (ws.saveState !== "saved") event.preventDefault(); }}>
           <ArrowLeft size={17} />
         </Link>
-        <Link href="/" className="workspace-brand" aria-label="Voltline projects">
+        <Link href="/" className="workspace-brand" aria-label="Voltline projects" aria-disabled={ws.saveState !== "saved"} onClick={event => { if (ws.saveState !== "saved") event.preventDefault(); }}>
           <span className="brand-mark small"><Zap size={14} strokeWidth={2.5} /></span>
           <span>Voltline</span>
         </Link>
@@ -126,9 +132,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             ? `Saving ${ws.pendingWrites}`
             : "Saved locally"}
         </div>
-        <span className="user-avatar small" title="Local user 1">1</span>
       </header>
 
+      <EstimateSetup navigate={setTab} />
+      {ws.saveState === "error" && <div role="alert" className="form-error m-3">Changes could not be saved: {ws.saveError}. Keep this tab open; issuing the bid is blocked.</div>}
       <div className="min-h-0 flex-1">
         {tab === "takeoff" && <TakeoffView />}
         {tab === "estimate" && <EstimateView />}

@@ -1,11 +1,13 @@
 // AI auto-count endpoint: supports two modes:
-// 1. "verify" (default/GA-6): receives an example-symbol template plus candidate crops (up to 24),
+// 1. "verify": receives an example-symbol template plus candidate crops (up to 12),
 //    runs ClaudeVerifier to verify each crop without coordinate guessing, and returns match decisions.
 // 2. "detect" (legacy): receives whole sheet tiles, runs ClaudeDetector, and returns pixel detections.
 
 import { NextRequest, NextResponse } from "next/server";
 import { ClaudeDetector } from "@/lib/autocount/claude";
 import { ClaudeVerifier } from "@/lib/autocount/verify";
+import { validateVerifyRequest } from "@/lib/autocount/verify-request";
+import { validVerificationMap } from "@/lib/autocount/local";
 import { dedupeDetections } from "@/lib/autocount/dedupe";
 import type {
   AutoCountRequest,
@@ -19,7 +21,6 @@ import type {
 export const maxDuration = 300;
 
 const MAX_TILES = 40;
-const MAX_CROPS_PER_REQUEST = 24;
 const CONCURRENCY = 4;
 
 /** Largest request body accepted, in bytes. Each tile/crop is a base64 image. */
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ---- MODE 1: VERIFY CROPS (GA-6) ----------------------------------------
+  if (!body || typeof body !== "object") return NextResponse.json({ error: "Request must be an object" }, { status: 400 });
   if ("mode" in body && body.mode === "verify") {
     const verifyReq = body as VerifyRequest;
     if (!verifyReq.template || typeof verifyReq.template !== "string") {
@@ -80,9 +82,9 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(verifyReq.crops) || verifyReq.crops.length === 0) {
       return NextResponse.json({ error: "crops array is required and must not be empty" }, { status: 400 });
     }
-    if (verifyReq.crops.length > MAX_CROPS_PER_REQUEST) {
+    if (raw.length > 2 * 1024 * 1024 || !validateVerifyRequest(verifyReq)) {
       return NextResponse.json(
-        { error: `Too many crops in single batch (${verifyReq.crops.length} > ${MAX_CROPS_PER_REQUEST})` },
+        { error: "Use at most 12 unique numbered PNG crops, each at most 256 × 256 pixels, in a request under 2 MB." },
         { status: 400 }
       );
     }
@@ -91,7 +93,7 @@ export async function POST(req: NextRequest) {
     try {
       const verifications = await verifier.verifyCrops(verifyReq.template, verifyReq.crops);
       return NextResponse.json({
-        verifications,
+        verifications: [...validVerificationMap(verifications, verifyReq.crops.map(crop => crop.index)).values()],
         model: verifier.model,
       });
     } catch (e) {

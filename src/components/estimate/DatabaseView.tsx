@@ -67,12 +67,12 @@ function CatalogHealth({ report }: { report: CatalogDiagnosticsReport }) {
   if (report.healthy) {
     return (
       <div
-        className="flex items-center gap-2 border-b border-[var(--color-line)] bg-[color-mix(in_srgb,var(--color-success)_7%,var(--color-ink-900))] px-3 py-2 text-xs text-[var(--color-success)]"
+        className="flex items-center gap-2 border-b border-[var(--color-line)] bg-[color-mix(in_srgb,var(--color-ok)_7%,var(--color-ink-900))] px-3 py-2 text-xs text-[var(--color-ok)]"
         role="status"
         data-testid="catalog-health"
       >
         <CheckCircle2 size={14} aria-hidden="true" />
-        Catalog checks pass — no duplicate codes, missing components, or unpriced items.
+        Catalog checks pass. No duplicate codes, missing components, or unpriced items.
       </div>
     );
   }

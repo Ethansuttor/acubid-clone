@@ -499,7 +499,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
                 const geometry = dragOverride.get(t.id) ?? t.geometry;
                 const selected = ws.selection.has(t.id);
                 const pending = t.status === "pending";
-                const color = pending ? "var(--color-ai)" : layer.color;
+                const color = pending ? "var(--color-pending)" : layer.color;
                 if (t.kind === "count") {
                   const g = geometry as { x: number; y: number };
                   return (
@@ -596,7 +596,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
                   <polyline
                     points={[...draft, ...(cursor ? [cursor] : [])].map((p) => p.join(",")).join(" ")}
                     fill="none"
-                    stroke={ws.tool === "calibrate" ? "var(--color-ai)" : "var(--color-volt)"}
+                    stroke={ws.tool === "calibrate" ? "var(--color-pending)" : "var(--color-volt)"}
                     strokeWidth={mk(2)}
                     strokeDasharray={`${mk(6)} ${mk(4)}`}
                   />
@@ -627,9 +627,9 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
                   y={aiBox.y}
                   width={aiBox.w}
                   height={aiBox.h}
-                  fill="var(--color-ai)"
+                  fill="var(--color-pending)"
                   fillOpacity={0.12}
-                  stroke="var(--color-ai)"
+                  stroke="var(--color-pending)"
                   strokeWidth={mk(1.5)}
                   strokeDasharray={`${mk(5)} ${mk(3)}`}
                   pointerEvents="none"
@@ -653,10 +653,10 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
             CAL 1&quot;={fmt(scale * 72, 1)}&apos;
           </span>
         ) : (
-          <span className="font-mono text-[var(--color-danger)]">UNCALIBRATED — press K</span>
+          <span className="font-mono text-[var(--color-danger)]">UNCALIBRATED · press K</span>
         )}
         {ws.tool === "calibrate" && (
-          <span className="text-[var(--color-ai)]">
+          <span className="text-[var(--color-pending)]">
             Calibration: click two points a known distance apart{draft.length === 1 ? " (1 of 2)" : ""}
           </span>
         )}
@@ -667,7 +667,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
           </span>
         )}
         {ws.tool === "aibox" && (
-          <span className="text-[var(--color-ai)]">Drag a box around ONE example symbol</span>
+          <span className="text-[var(--color-pending)]">Drag a box around ONE example symbol</span>
         )}
         {pdfStructure && (
           <span className="text-[var(--color-fg-faint)]" title={`${pdfStructure.operator_count} PDF drawing operators; ${pdfStructure.text_item_count} text items; ${pdfStructure.image_paint_count} raster images`}>

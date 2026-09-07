@@ -6,6 +6,7 @@
 // sheet, so the proposal always shows what it read and what it derived.
 
 import { useState } from "react";
+import { ScanText } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { loadDocument } from "@/lib/pdf";
 import { calibrationFromScale, feetPerUnit, formatScale } from "@/lib/sheetai/scale";
@@ -96,12 +97,14 @@ export default function SheetAnalysis() {
   return (
     <>
       <button
-        className="btn !px-2 !py-0.5 text-xs !text-[var(--color-ai)]"
+        className="btn !px-2 !py-0.5 text-xs"
         onClick={run}
         disabled={!!busy || ws.sheets.length === 0}
-        title="Read title blocks and drawing scales with Claude"
+        aria-label="Read title blocks and scales"
+        title="Read title blocks and drawing scales from the plan PDFs"
       >
-        {busy ? "…" : "✨ Read"}
+        <ScanText size={13} />
+        {busy ? "…" : "Scales"}
       </button>
 
       {(busy || error || proposals) && (
@@ -112,8 +115,8 @@ export default function SheetAnalysis() {
           aria-labelledby="sheet-analysis-title"
         >
           <div className="panel max-h-full w-[720px] overflow-auto">
-            <div className="titlebar flex items-center justify-between border-b border-[var(--color-line)] px-4 py-3 !text-[var(--color-ai)]">
-              <span id="sheet-analysis-title" className="font-semibold">AI sheet analysis</span>
+            <div className="titlebar flex items-center justify-between border-b border-[var(--color-line)] px-4 py-3">
+              <span id="sheet-analysis-title" className="font-semibold">Title block and scale read</span>
               <button
                 className="btn !px-2 !py-0.5 text-xs"
                 onClick={() => {

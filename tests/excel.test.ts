@@ -94,4 +94,60 @@ describe("excel export", () => {
     expect(find("BID PRICE")).toBe(2280.83);
     expect(summary.bidPrice).toBeCloseTo(2280.82624, 8);
   });
+
+  it("omits the Breakdown sheet when no layer carries a tag", () => {
+    expect(wb.worksheets.map((w) => w.name)).not.toContain("Breakdown");
+  });
+});
+
+describe("excel breakdown sheet", () => {
+  // Same tagging and hand-calculated shares as tests/breakdown.test.ts:
+  //   Power 993.38624, Lighting 931.1456, Unassigned 356.2944 = 2280.82624.
+  const SYSTEMS: Record<string, string> = {
+    "l-led": "Lighting",
+    "l-wire": "Lighting",
+    "l-rec": "Power",
+    "l-emt": "",
+  };
+  const built = buildWorkbook({
+    project,
+    sheets: [sheet],
+    layers: layers.map((l) => ({ ...l, system: SYSTEMS[l.id] })),
+    takeoffs,
+    items,
+    assemblies,
+    assemblyItems,
+  });
+  const rows: unknown[][] = [];
+  built.wb.getWorksheet("Breakdown")!.eachRow((row) => rows.push((row.values as unknown[]).slice(1)));
+
+  it("adds the sheet once a dimension is tagged, for the tagged dimension only", () => {
+    expect(built.wb.worksheets.map((w) => w.name)).toEqual([
+      "Takeoff",
+      "Material",
+      "Labor",
+      "Breakdown",
+      "Summary",
+    ]);
+    expect(rows.some((r) => r[0] === "BID BY SYSTEM")).toBe(true);
+    // area and phase are untagged, so they would only say "Unassigned 100%".
+    expect(rows.some((r) => r[0] === "BID BY AREA")).toBe(false);
+    expect(rows.some((r) => r[0] === "BID BY PHASE")).toBe(false);
+  });
+
+  it("carries each system's share of the bid price and sums to the total", () => {
+    const row = (label: string) => rows.find((r) => r[0] === label)!;
+    expect(row("Power")[4]).toBe(993.39);
+    expect(row("Lighting")[4]).toBe(931.15);
+    expect(row("Unassigned")[4]).toBe(356.29);
+    expect(row("BID PRICE")[4]).toBe(2280.83);
+    // Material and labor come from the same chain as the Summary sheet.
+    expect(row("Power")[1]).toBe(125.36);
+    expect(row("Power")[3]).toBe(680.96);
+    expect(row("Power")[5]).toBeCloseTo(43.55, 2);
+  });
+
+  it("never drops untagged scope from the export", () => {
+    expect(rows.some((r) => r[0] === "Unassigned")).toBe(true);
+  });
 });

@@ -26,8 +26,8 @@ All of it is in pure modules with no React and no I/O:
   bid summary, issue reporting
 
 Components render results; they never calculate. `src/lib/excel.ts` formats
-what these return and computes nothing of its own — that is why the Estimate
-tab, Summary tab, and export can never disagree.
+what these return and computes nothing of its own — integration tests still need to verify
+that the UI and export use the same inputs and outputs.
 
 ## 3. The pipeline
 
@@ -40,22 +40,18 @@ estimateTotals(lines)    -> { materialBase, laborHoursBase }
 summarize({ ...totals, rates, directCosts }) -> EstimateSummary
 ```
 
-## 4. The bid order (do not reorder without asking the user)
+## 4. The bid order (change only with explicit commercial semantics)
 
 ```
-material from takeoff
-  + waste %                 (you buy the waste)
-  + sales tax %             (on material AFTER waste)
-  = material total
-labor hours from takeoff
-  ± labor factor %          (adjusts HOURS, not the rate)
-  x labor rate              = labor cost
-+ direct costs flagged ohp_applies
-  = prime cost
-  + overhead %              = subtotal
-  + profit %
-+ direct costs flagged at-cost   (added after profit, never marked up)
-  = BID PRICE
+material + waste + escalation
+  + tax on material after waste/escalation = material total
+labor hours +/- labor factor, then x labor rate = bare labor
+bare labor + burden = labor cost
+material total + labor cost + small tools
+  + O&P-applicable direct costs and their tax = prime
+prime + contingency, then overhead, then profit
+  + at-cost direct costs and their tax = pre-bond total
+pre-bond total / (1 - bond rate) = bid price
 ```
 
 ## 5. Never silently drop quantity
@@ -97,3 +93,11 @@ npx playwright test     # E2E — proves it is wired up, not just correct
 New estimating behaviour needs both: a unit test for the arithmetic and an
 E2E that drives it through the real UI. Add a zero-value case proving the
 fixture's original numbers are unchanged.
+
+Current implementation/verification are in
+[07-verification.md](../../../.ai/07-verification.md).
+When a user already authorized a policy change, implement it with independent
+examples and affected-output tests rather than asking permission again.
+Missing commercial semantics require a concrete example for the estimator;
+continue unrelated work while clarifying. Parallel formula edits belong to
+the coordinator or one explicitly assigned owner.

@@ -1,223 +1,197 @@
-# Never lose an edit: the journal, the vault folder, and cloud sync
+# Storage and recovery implementation packet — track S
 
-**Written:** August 26, 2026
-**Status:** browser milestone N-1 is partially implemented. IndexedDB tables/files,
-an atomic mutation outbox, persistent-storage controls, and an optional recovery
-folder mirror are live. Cloud sync, hash-chain verification, restore UX, and the
-desktop vault remain planned.
-**The requirement, in the owner's words:** *"it should be in the cloud and
-more than that it should never lose information. everything should be saved
-immediately… saving to the cloud and then saving to some special kind of
-folder if it cannot save to the cloud."*
+Updated September 7, 2026. Status: browser foundation implemented; desktop and
+cloud stages planned. Coordination: [parallel plan](18-parallel-execution-plan.md).
 
-Related: [`13-windows-desktop-plan.md`](13-windows-desktop-plan.md) (the
-desktop shell is what makes the folder fully trustworthy),
-[`12-spectrum-job-cost-plan.md`](12-spectrum-job-cost-plan.md) (this plan
-**satisfies D-S4**, the cloud prerequisite for the post-award cost ledger).
+## Goal and current facts
 
----
+Acknowledge edits only after a local transaction commits. Preserve acknowledged
+data across tested process crashes and retain a verified, independent recovery
+copy. No storage design can promise survival of every hardware failure,
+malicious deletion, or loss of all backups.
 
-## Verdict
+Today:
+- IndexedDB stores all tables as one state value and PDFs separately.
+- Each mutation and its journal record commit atomically.
+- The whole workspace's tables are rewritten for each table mutation.
+- The store serializes writes and keeps unresolved save errors sticky.
+- Web Locks serialize browser database operations and prevent simultaneous
+  estimate editors in the same origin/profile.
+- Portable .voltline.json backup/restore exists, including checksums and PDFs.
+  It is capped at 256 MB total and 128 MB input PDFs; restore needs an empty
+  destination. The recovery-folder mirror is a different format.
+- A folder mirror exists; a dedicated folder-mirror restore tool does not.
+- Cloud push/pull, replay receipts, conflict handling, and desktop SQLite do
+  not exist in the reviewed baseline. The current outbox is not a complete
+  sync implementation.
 
-**Yes — this can be built the way you're thinking, with one amendment to the
-order of the two writes.** Both destinations you named are correct: the
-cloud, and a special folder. The amendment: write the folder/local journal
-**first** — it takes single-digit milliseconds and cannot fail because of the
-network — and push to the cloud **immediately after**, typically within a
-second. Same two destinations, same immediacy, identical user experience.
-The flip is what upgrades "should never lose information" from an intention
-into a property you can prove.
+## Storage contract
 
-## Why local-first-then-cloud beats cloud-first-with-fallback
+C1 defines the exact API before D/S work diverges. Cover the current query
+subset and storage operations, plus replaceAssemblyItems, exportWorkspace,
+restoreEmptyWorkspace, exclusive editing/maintenance, and health status.
 
-Three concrete failure cases of the cloud-first ordering:
+Do not switch only supabase(). workspace.ts calls replaceLocalAssemblyItems
+directly; DataProtectionCard calls browser export/restore/locking functions.
+Those paths must use the selected backend too. Browser folder controls need
+a native implementation or an explicit unsupported capability in desktop mode.
 
-1. **The crash window.** A cloud write takes anywhere from 100 ms to a 30 s
-   timeout, and the folder fallback only triggers *after* the failure is
-   detected. A power cut, crash, or force-close inside that window — with
-   the fallback still pending — means the edit existed only in RAM and is
-   gone. A local append is a few milliseconds and survives everything short
-   of the disk itself dying.
-2. **The unexercised path.** A folder used *only when the cloud is down* is
-   recovery code that runs a handful of times a year — precisely the code
-   most likely to be broken the day it is finally needed. Writing the folder
-   on **every** save means the recovery path is exercised thousands of times
-   a day. (This is the same philosophy as the AI review queue: a safeguard
-   nobody exercises isn't one.)
-3. **Ambiguous failure.** A cloud request can fail *after* the server
-   durably applied it — the acknowledgment got lost, not the write.
-   Cloud-first must then choose between retrying (risking a double-post) and
-   not retrying (risking loss). A local journal with idempotency keys makes
-   retry always safe: the server ignores an operation it has already seen.
+Preserve error and transaction behavior, not the fiction of complete Supabase
+SDK parity. Inventory actual columns/defaults in types, constructors, imports,
+and all migration files. No SQL migration is applied to a live cloud here.
 
-The save indicator can still honestly say "saved" within milliseconds and
-"in cloud" a moment later. Nothing about the experience changes; only the
-guarantee does.
+## S1 — Contract and performance baseline
 
----
+Dependencies: C1. Own: tests/storage-contract/**, scripts/storage/**.
 
-## Design: a write-ahead journal behind the existing write queue
+1. Characterize queries: lazy execution/await, insert/update/upsert/delete,
+   multiple filters, in, ordering, projections actually used, exact-one
+   single(), returned errors, cascades, and file API shapes.
+2. Characterize compound operations: assembly replacement failure preserves
+   the original list; snapshot revision allocation; backup consistency;
+   occupied restore refusal; archive versus permanent deletion.
+3. Run browser cases against real IndexedDB in a browser. Existing tests that
+   use localStorage fallback cannot establish IndexedDB transaction behavior.
+4. Produce an adapter-independent contract suite. Intentional stricter
+   validation is acceptable when documented and tested in both active paths.
+5. Measure 1k/10k/50k takeoff datasets, multiple projects, and frozen snapshots.
+   Separate edit-to-commit latency, reload, export/restore, process memory,
+   disk growth, and calculation time. The existing npm run bench covers only
+   in-memory estimating functions. Avoid timing assertions in normal CI.
 
-The store already serializes every mutation through one FIFO `writeQueue`
-(invariant 10) — which is exactly where a journal wants to live. No
-component, no pure lib, and no store *caller* changes.
+Acceptance: measured baseline with environment and dataset sizes; behavior
+fixtures runnable against browser and a supplied future adapter. No production
+data in tests. Cases should assert outcomes, not mirror SQL implementation.
 
-**Op record:**
+## S2 — SQLite and plan files
 
-```
-{ seq, opId (uuid), ts, table, kind: insert|update|delete,
-  rowId, payload, prevChecksum, checksum }
-```
+Dependencies: S1 and C1. Own: desktop/storage/**.
 
-The checksums form a hash chain, so truncation or corruption of the journal
-is *detectable*, never silent.
+- Use a local app-managed data directory outside install/repo paths. Keep the
+  active database on a local filesystem; a user-chosen backup destination is
+  distinct from the live database. Do not assume a shared/network/sync folder
+  provides SQLite's required locking semantics.
+- Choose a driver compatible with the bundled runtime; pin it through the
+  coordinator. Enable and verify foreign keys. Use versioned SQLite migrations
+  with explicit JSON/boolean/date/number mappings and domain validation.
+  Translate the complete logical schema; do not execute Postgres SQL as-is.
+- Make numeric representation preserve the existing JS calculation semantics.
+  This task does not change bid formulas or rounding policies.
+- Implement row-level writes and required indexes instead of rewriting the
+  entire workspace. Commit mutations and outbox records in the SAME SQLite
+  transaction. Mark saved only after commit succeeds.
+- Do not introduce an independent JSON journal as a second authoritative
+  write path. It would create a new failure window between log and database.
+  Optional readable journals/backups are secondary exports.
+- Store immutable PDF bytes by content hash under managed plans storage.
+  Preserve existing logical storage_path values through a mapping to hashes;
+  do not silently rewrite historical snapshot references.
+- Stage/verify/publish plan files before committing references. A crash may
+  leave an unreferenced staged file; it must not leave a committed document
+  pointing at missing bytes. File and database writes are not one transaction.
+- Retain files referenced by live documents, frozen snapshots, or retained
+  backup manifests. Garbage collection requires a reference inventory and
+  grace period; do not delete by filename guess or a single live-document query.
+- Centralize editing/maintenance exclusion across desktop processes, and
+  allocate revision numbers transactionally with a uniqueness constraint.
 
-**Pipeline, per mutation:**
+Acceptance: contract suite green, atomic failure tests, references preserved,
+real packaged-runtime SQLite operation, and benchmark comparison to S1.
+No corruption or dropped data may be traded for lower latency.
 
-1. **Append the op to the journal** — durable local write. Only now does
-   `saveState` become `"saved"`. This is the only step whose failure is the
-   sticky error (invariant 10 unchanged in spirit, upgraded in substance).
-2. **Apply to the local database** (SQLite in desktop mode, IndexedDB in
-   browser mode).
-3. **Syncer pushes ops, in order, to Supabase.** Server acknowledgment marks
-   the op *replicated*. The UI shows `synced`, or `pending (N)` while the
-   cloud is behind or unreachable — with retry and backoff.
-4. **Compaction**, periodically: write a full snapshot, then truncate only
-   the *replicated* prefix of the journal. The unreplicated tail is never
-   touched.
+## S3 — Migration, backups, and restore
 
-Large binaries never enter the journal: PDFs are content-addressed files
-(`plans/<sha256>.pdf`) referenced by hash from ordinary row data.
+Dependencies: S2; work may start with S1 fixtures.
 
----
+Reuse the existing .voltline.json reader for browser migration. Do not invent
+a replacement .voltproj format solely to duplicate existing functionality.
+For larger workspaces, add a versioned streaming archive with a manifest,
+structured records, and binary PDF entries; retain old-format import.
 
-## The special folder (desktop mode — the real version)
+Required sequence:
+1. Read/validate input format, schema versions, duplicate IDs, relation graph,
+   PDF presence/hashes, and resource limits without mutating current storage.
+2. For an archive, reject path traversal, absolute paths, duplicate entries,
+   excessive decompressed sizes, invalid hashes, and unknown required versions.
+   Never evaluate content from an imported file.
+3. Import into a staging database/directory, with all entities and PDFs.
+   Preserve IDs, pending status, geometry, calibration, prices, and snapshot
+   payloads. Validate all historical PDF references, not only current documents.
+4. Recompute live estimate totals and compare to export evidence; compare
+   frozen snapshot contents without rewriting or repricing them.
+5. Publish the verified destination under exclusive maintenance access.
+   Refuse an occupied target in the first version. Do not delete or alter the
+   browser source, input backup, or last good desktop database.
+6. Record migration result and retained source location. Handle interruption
+   before/after publication deterministically and make retry safe.
 
-A user-visible, user-chosen folder of plain files. Proposed layout:
+Create automatic consistent backups of records AND their matching PDF set.
+For live SQLite use the driver's online backup mechanism or another verified
+consistent snapshot method; copying only a live .db file can omit committed
+WAL content. Pin file references while copying, verify the complete manifest,
+then publish the backup. [SQLite backup documentation](https://www.sqlite.org/backup.html)
 
-```
-Voltline Vault/
-  voltline.db                     — SQLite working database
-  journal/current.jsonl           — append-only op log, hash-chained
-  journal/sealed/…                — closed segments awaiting compaction
-  snapshots/2026-08-26T14-30/     — full, human-readable project exports
-  plans/<sha256>.pdf              — content-addressed drawings
-  MANIFEST.json                   — checksums for everything above
-```
+Default proposal: a backup after a changed session, before schema upgrades,
+and periodically during active work; keep a bounded configurable retention
+policy. Measure size before choosing retention counts. Retain issued revision
+evidence and its referenced files; do not assume indefinite full snapshots
+cost only megabytes. A same-disk backup protects against some mistakes, not
+device loss. Report last successful backup and replication separately.
 
-Rules:
+Implement a folder-mirror importer only after documenting its actual baseline,
+latest.json, per-mutation, and filename mapping formats. Do not feed mirror
+JSON to the portable importer or assume the current journal is replay-complete.
 
-- **Atomic writes everywhere:** write to a temp file, then rename. Journal
-  appends are fsynced (measure the cost; batch appends if needed — but
-  durability wins ties, per the one rule that outranks everything).
-- **Rotation, GFS-style:** hourly snapshots kept ~48 h, dailies kept ~90
-  days, weeklies kept indefinitely — at these data sizes, "forever" is
-  megabytes.
-- **Bid snapshots are special:** at creation, each `BidSnapshot` is *also*
-  exported as a standalone JSON file in the vault, and those are **never
-  rotated away**. An issued bid must be reproducible years later.
-- **Never delete last-known-good.** Compaction writes the new snapshot and
-  verifies it before any old file is removed.
-- **Everything human-readable.** JSON, real PDFs, a manifest. If the app
-  vanished tomorrow, the data would still be legible in Notepad. The vault
-  outlives the software — that is the point of a vault.
+## S4 — Failure and upgrade verification
 
-## Browser mode (the honest approximation, until plan 13 ships)
+Dependencies: S2/S3 and packaged desktop integration.
 
-- Journal and tables now use **IndexedDB** (localStorage stays only as the
-  legacy read path — it is too small and synchronous for a journal).
-- The dashboard now offers `navigator.storage.persist()` as a user-triggered
-  protection action.
-- Implemented foundation: the File System Access API can grant the web app a real vault
-  directory ("choose your backup folder") — Chromium-only, and the
-  permission can lapse and need re-granting. Offer it; do not rely on it.
-- Stated plainly: a browser can still lose IndexedDB to a profile wipe or
-  eviction. Browser mode *narrows* the loss window; the desktop shell
-  ([`13-windows-desktop-plan.md`](13-windows-desktop-plan.md)) is what
-  closes it. "Never" is a desktop word.
+Use disposable data directories. Inject failure at file staging, reference
+commit, transaction commit, backup publication, and migration publication.
+Kill the process before and after an acknowledged save.
 
----
+Acceptance matrix:
+- Committed edits survive forced termination and reopen.
+- An interrupted transaction is wholly applied or wholly absent.
+- An unacknowledged edit may be absent; it must never have been labeled saved.
+- Disk-full/read-only/permission errors are visible and sticky for local saves.
+- A backup failure does not erase the primary data or claim a backup succeeded.
+- Damaged/missing PDFs and unsupported schemas fail visibly.
+- Repeated restore/migration attempts do not duplicate records or replace an
+  occupied workspace.
+- An upgrade failure preserves the last good database and a recovery route.
+- Browser -> desktop -> backup -> fresh desktop restores identical logical
+  records and binary hashes; old backup versions remain readable.
 
-## The cloud side
+Process-kill tests are not proof of survival under every physical power loss.
+Record SQLite journal/synchronous settings, platform, driver, and failure model.
+[SQLite WAL documentation](https://www.sqlite.org/wal.html)
 
-- The repository contains the cloud migrations, but their live-project status
-  must be verified before rollout. Future sync is **idempotent per-row upserts** carrying the
-  `opId`; an `op_log` table records applied opIds so a retried push is a
-  no-op. Server timestamps are authoritative.
-- **Pull-on-load:** fetch the project's rows, reconcile with local by row
-  lineage. The fail-closed rules (invariant 9) apply unchanged — a partial
-  pull never renders.
-- **Conflict policy** (one user, possibly two machines): when histories
-  don't overlap, last-writer-wins per row. When both sides changed the
-  *same row* since the common ancestor, **surface a conflict banner and keep
-  both versions** — sync inherits invariant 6's culture: reject/surface
-  rather than guess. Money rows are never silently merged.
-- No realtime channel needed for a single user; pull on load plus periodic
-  refresh is enough. A future multi-estimator mode adds realtime *on top of*
-  the journal without changing it.
-- **Dev-environment note:** Supabase egress is blocked in the dev
-  environment ([`08-environment.md`](08-environment.md)). All sync tests run
-  against the Supabase CLI local stack or a contract mock; the live-cloud
-  smoke test is a documented manual step from the owner's machine.
+## Cloud follow-on, after local release gates
 
-## The save indicator, retold truthfully
+The historical desire for cloud recovery remains. Implement it as a separate
+assigned stage after local recovery works; do not make desktop delivery depend
+on it. Provider selection, account configuration, private-data upload, costs,
+and live migrations need existing task authorization.
 
-| State | Meaning |
-|---|---|
-| `saved` | The op is durably journaled on this machine — milliseconds after every edit |
-| `synced` | The cloud has every op |
-| `pending (N)` | The cloud is N ops behind — a **status**, not an error; retrying with backoff |
-| `error` | A **local** journal write failed — sticky, the real alarm (invariant 10) |
+Before coding sync specify:
+- monotonic per-device sequence, stable operation IDs, base revision/version,
+  tombstones, and schema compatibility;
+- atomic server application AND receipt recording so lost acknowledgements
+  can be retried safely (upsert alone is not sufficient);
+- preserved delete/update ordering and compound-operation boundaries;
+- PDF replication and retention separately from row-data backup;
+- explicit same-row conflicts preserving both versions;
+- local saved, backup current, and cloud synchronized as separate statuses.
 
-Preflight gains one warning: issuing/exporting a bid while unsynced ops
-exist. Informational only — local durability has already been achieved.
+A hash chain can detect some corruption or breaks relative to a trusted
+checkpoint. It cannot detect deletion of a valid suffix without an independent
+expected head/sequence; it provides neither replication nor authentication.
+Do not promise "never lose information" on that basis.
 
-## Restore, and showing the receipts
+## Handoff
 
-- **Startup integrity pass:** verify the hash chain and MANIFEST, replay any
-  unreplicated ops, and *report* what was recovered — never recover
-  silently.
-- **Open any snapshot as a read-only copy**, by date or by bid revision.
-- **A "Data safety" panel:** last local write, last cloud sync, last
-  snapshot, vault location, ops pending, and a verify-now button. For a tool
-  whose product is trust, the receipts are a feature.
-
----
-
-## Milestones
-
-Planning estimates, not commitments. N-3 depends on plan 13's D-2.
-
-| # | Work | Est. |
-|---|---|---|
-| N-1 | IndexedDB journal behind `writeQueue`; `persist()`; new save states | 3–5 d |
-| N-2 | Supabase push/pull, idempotency, conflict surfacing; local-stack tests | 5–8 d |
-| N-3 | Desktop vault: folder layout, fsync, rotation, MANIFEST | 4–6 d |
-| N-4 | Integrity pass, snapshot restore UX, Data-safety panel | 3–4 d |
-| N-5 | **Crash-recovery test suite:** kill-during-write, torn-append simulation, chain-corruption detection, double-push retry | 2–4 d |
-
-N-5 is a deliverable in its own right: the tests *are* the durability claim.
-Completing N-2 satisfies plan 12's **D-S4**, unblocking the post-award cost
-ledger (SP-5).
-
-## Failure modes
-
-| # | Failure | Mitigation |
-|---|---|---|
-| 1 | Double-push after a crash mid-sync | Idempotent opIds + server `op_log`; retry is always safe |
-| 2 | Torn/partial journal append | Hash chain detects it; truncate to last valid entry; the lost tail is **reported**, never silently dropped |
-| 3 | Clock skew between devices | Server timestamps authoritative; `seq` is per-device |
-| 4 | Local and cloud schemas drift | Lockstep migration rule + parity tests (see `schema-migration` in [`15-proposed-skills.md`](15-proposed-skills.md)) |
-| 5 | Vault placed inside OneDrive/Dropbox | Detect and warn: sync tools interfere with atomic renames; recommend a plain folder (their backup still helps at rest) |
-| 6 | Browser quota exhaustion | `persist()` + size telemetry + a warning at ~80% |
-| 7 | Conflicting edits silently merged | Invariant 22 below: surfaced, both versions kept |
-
-## Invariants to add when built (not before)
-
-19. **An edit is not "saved" until its op is durably journaled.** Cloud
-    state is a status; the journal is the durability claim.
-20. **Journal ops are never reordered, edited, or truncated while
-    unreplicated.**
-21. **Every retry is idempotent end-to-end** (opId, everywhere).
-22. **Concurrent edits to the same row are surfaced, never auto-merged.**
-23. **Bid-snapshot vault exports are never rotated away.**
+Report contract coverage, measured save latency, native-runtime validation,
+migration format compatibility, crash checkpoints tested, retention/file
+reference handling, and remaining unverified physical/off-device risks.
+Use the [master report template](18-parallel-execution-plan.md).

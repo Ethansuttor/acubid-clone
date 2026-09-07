@@ -1,73 +1,15 @@
-// Phase 4 verification: AI auto-count review flow with the detection API
-// mocked (no ANTHROPIC_API_KEY in the sandbox). Verifies:
-//   - drawing an example box triggers tiling + detection request
-//   - detections land as PENDING and contribute NOTHING to the estimate
-//   - keyboard review: Y accept, N reject, Shift+A accept-all
-//   - only accepted detections extend into quantities/estimate
-//   - review actions are undoable
-//
-// Under the default "ncc-verify" strategy the browser locates candidates
-// itself with deterministic template matching and the API only VERIFIES crops,
-// so this spec mocks the verify call: the first ACCEPTED_CANDIDATES crops match
-// and the rest do not. That fixes the review queue at exactly 6 pending
-// regardless of how many candidates the matcher proposes, which keeps this
-// spec about the review-queue invariant rather than detector accuracy.
-//
-// It does assume the matcher finds at least 6 candidates on the fixture plan;
-// if that stops being true the precondition assertion below says so plainly.
+// Offline detector acceptance: real worker and PDF pixels, zero API requests.
+// Every candidate stays pending until the estimator confirms it.
 
 import { test, expect } from "@playwright/test";
 import { signIn, pdfToScreen } from "./helpers";
 
-const ACCEPTED_CANDIDATES = 6;
 
-test("phase 4: auto-count review queue", async ({ page }) => {
-  let verifiedCrops = 0;
-  await page.route("**/api/autocount", async (route) => {
-    const body = route.request().postDataJSON() as {
-      mode?: string;
-      crops?: { index: number }[];
-      tiles?: { x: number; y: number; w: number; h: number }[];
-    };
-
-    if (body.mode === "verify") {
-      const crops = body.crops ?? [];
-      verifiedCrops += crops.length;
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        json: {
-          verifications: crops.map((c) => ({
-            index: c.index,
-            match: c.index <= ACCEPTED_CANDIDATES,
-            confidence: 0.95 - (c.index - 1) * 0.05,
-          })),
-          model: "mock-verifier",
-        },
-      });
-      return;
-    }
-
-    // Legacy whole-tile path, kept so the spec still works if
-    // DETECTION_STRATEGY is switched back to "tile-scan".
-    const tiles = body.tiles ?? [];
-    const canvasW = Math.max(...tiles.map((t) => t.x + t.w));
-    const S = canvasW / 612;
-    const receptacles: [number, number][] = [
-      [80, 642], [80, 392], [80, 142], [520, 642], [520, 392], [520, 142],
-    ];
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      json: {
-        detections: receptacles.map(([cx, cy], i) => ({
-          x: cx * S - 12, y: cy * S - 12, w: 24, h: 24, confidence: 0.95 - i * 0.05,
-        })),
-        tilesProcessed: tiles.length,
-        model: "mock-detector",
-        warnings: [],
-      },
-    });
+test("phase 4: offline auto-count review queue", async ({ page }, testInfo) => {
+  let apiCalls = 0;
+  await page.route("**/api/autocount", async route => {
+    apiCalls++;
+    await route.abort();
   });
 
   await signIn(page);
@@ -112,13 +54,34 @@ test("phase 4: auto-count review queue", async ({ page }) => {
   await page.mouse.move(p2.x, p2.y, { steps: 4 });
   await page.mouse.up();
 
+  // Cancellation terminates the real worker/render without adding quantities;
+  // a subsequent search must still be usable.
+  await page.getByRole("button", { name: "Cancel search", exact: true }).click();
+  await expect(page.getByText("Search cancelled. No candidates were added.")).toBeVisible();
+  await expect(page.getByText(/pending detection\(s\)/)).toHaveCount(0);
+  await expect(page.getByText("0 EA")).toBeVisible();
+  await page.keyboard.press("b");
+  await page.mouse.move(p1.x, p1.y);
+  await page.mouse.down();
+  await page.mouse.move(p2.x, p2.y, { steps: 4 });
+  await page.mouse.up();
+
   // 6 pending detections; nothing counted yet
   await expect(page.getByText("6 pending detection(s)")).toBeVisible({ timeout: 60_000 });
-  expect(
-    verifiedCrops,
-    `the matcher proposed ${verifiedCrops} candidates; this spec needs at least ${ACCEPTED_CANDIDATES}`
-  ).toBeGreaterThanOrEqual(ACCEPTED_CANDIDATES);
+  expect(apiCalls).toBe(0);
+  await expect(page.getByTestId("detection-report")).toContainText("0 API calls");
   await expect(page.getByText("0 EA")).toBeVisible();
+
+  // Repeating the same search must not duplicate pending marks.
+  await page.keyboard.press("b");
+  await page.mouse.move(p1.x, p1.y);
+  await page.mouse.down();
+  await page.mouse.move(p2.x, p2.y, { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByTestId("detection-report")).toContainText("0 new candidates", { timeout: 60_000 });
+  await expect(page.getByText("6 pending detection(s)")).toBeVisible();
+  expect(apiCalls).toBe(0);
+  await page.screenshot({ path: testInfo.outputPath("offline-symbol-review.png"), fullPage: true });
 
   // Accept the first (Y): 5 pending, 1 counted
   await page.keyboard.press("y");

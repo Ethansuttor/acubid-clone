@@ -1,46 +1,58 @@
-# `.ai/` — context pack for an AI working on Voltline
+# AI documentation index
 
-This directory exists so a fresh assistant session can be productive in
-minutes without re-reading the whole codebase or re-deriving decisions that
-were already made and paid for.
+Updated September 7, 2026.
 
-**Read in this order. Stop when you have enough for the task in front of you.**
+Start with [00-START-HERE.md](00-START-HERE.md). For implementation use
+[18-parallel-execution-plan.md](18-parallel-execution-plan.md) and
+[16-desktop-task-queue.md](16-desktop-task-queue.md). The user's instructions
+control scope; docs describe requirements, current evidence, and proposed work.
 
-| File | Read it when |
-|---|---|
-| [`00-START-HERE.md`](00-START-HERE.md) | Always. Five minutes, whole picture. |
-| [`01-product.md`](01-product.md) | You need to know what this is and who it's for. |
-| [`02-domain.md`](02-domain.md) | **Before touching estimating logic.** Electrical-estimating vocabulary. |
-| [`03-architecture.md`](03-architecture.md) | You're about to change code. Module map and data flow. |
-| [`04-invariants.md`](04-invariants.md) | **Before any change to money, quantity, or AI output.** Non-negotiables. |
-| [`05-decisions.md`](05-decisions.md) | You're wondering "why is it done this odd way?" |
-| [`06-bug-history.md`](06-bug-history.md) | **Before changing parsers or estimate math.** Bugs already found and fixed. |
-| [`07-verification.md`](07-verification.md) | You're about to claim something works. |
-| [`08-environment.md`](08-environment.md) | Something won't run, connect, or authenticate. |
-| [`09-roadmap.md`](09-roadmap.md) | You're deciding what to build next. |
-| [`10-audit-and-competitive-roadmap.md`](10-audit-and-competitive-roadmap.md) | You need the failure-risk audit, Accubid comparison, or owner action list. |
-| [`11-gemini-flash-task-queue.md`](11-gemini-flash-task-queue.md) | You want bounded, copy-pasteable tasks for a fast coding model. |
-| [`12-spectrum-job-cost-plan.md`](12-spectrum-job-cost-plan.md) | You're planning post-award work: job cost, budgets, change orders, billing, WIP, or an ERP handoff. |
-| [`13-cloud-durability-and-non-llm-autocount.md`](13-cloud-durability-and-non-llm-autocount.md) | You need the implemented browser durability status, PDF-layer strategy, non-LLM counter design, or owner action list. |
-| [`13-windows-desktop-plan.md`](13-windows-desktop-plan.md) | You're planning the Windows desktop (Electron) version of the app. |
-| [`14-durability-and-sync-plan.md`](14-durability-and-sync-plan.md) | You're planning the never-lose-data journal, vault folder, or cloud sync. |
-| [`15-proposed-skills.md`](15-proposed-skills.md) | You're deciding which new coding skills to approve and write. |
-| [`16-desktop-task-queue.md`](16-desktop-task-queue.md) | You're delegating the Windows/Electron build to a fast coding model, one task at a time. |
-| [`17-autocount-accuracy-plan.md`](17-autocount-accuracy-plan.md) | Auto-count is inaccurate: the diagnosis, eval harness, and fix queue. |
+## Active execution packets
 
-## The one-paragraph version
+| File | Purpose |
+| --- | --- |
+| [18-parallel-execution-plan.md](18-parallel-execution-plan.md) | Common baseline, contracts, file ownership, parallel waves, integration and release gates |
+| [16-desktop-task-queue.md](16-desktop-task-queue.md) | Coordinator/worker prompts and initial dispatch queue |
+| [13-windows-desktop-plan.md](13-windows-desktop-plan.md) | D1–D4: standalone payload, Electron lifecycle, AI custody, installer |
+| [14-durability-and-sync-plan.md](14-durability-and-sync-plan.md) | S1–S4: contract suite, SQLite, migration, backup, crash/upgrade tests |
+| [17-autocount-accuracy-plan.md](17-autocount-accuracy-plan.md) | V1–V4: evaluation, real labels, performance, worker integration |
+| [19-real-estimate-acceptance.md](19-real-estimate-acceptance.md) | A1–A4: independently checked job through browser and installed Windows app |
 
-Voltline is a working electrical-estimating and on-screen-takeoff web app —
-a replacement for Trimble Accubid (estimating) and LiveCount (takeoff) for a
-single practising estimator, plus AI features neither has. It is used on live
-bids, so **the arithmetic is the product**. A wrong number that looks
-plausible is the worst possible failure, worse than a crash. Everything in
-[`04-invariants.md`](04-invariants.md) exists to prevent that.
+## Current context and evidence
 
-## How to keep this pack useful
+| File | Purpose |
+| --- | --- |
+| [01-product.md](01-product.md) | Intended workflow and limits |
+| [02-domain.md](02-domain.md) | Electrical estimating vocabulary |
+| [03-architecture.md](03-architecture.md) | Implemented modules and transition seams |
+| [04-invariants.md](04-invariants.md) | Quantity, money, persistence, review and output requirements |
+| [05-decisions.md](05-decisions.md) | Current decisions with historical rationale |
+| [06-bug-history.md](06-bug-history.md) | Prior defects and why regression cases exist |
+| [07-verification.md](07-verification.md) | Current commands and dated evidence |
+| [08-environment.md](08-environment.md) | Running the app and tooling constraints |
+| [09-roadmap.md](09-roadmap.md) | Priorities, completed foundation, future features |
+| [10-audit-and-competitive-roadmap.md](10-audit-and-competitive-roadmap.md) | Current repository gaps and assigned tracks |
+| [11-gemini-flash-task-queue.md](11-gemini-flash-task-queue.md) | Optional small follow-ons; not another active queue |
+| [12-local-product-review.md](12-local-product-review.md) | September 6 recovery/workflow review record |
+| [13-image-detection.md](13-image-detection.md) | Implemented detector fixes and dated synthetic evidence |
+| [15-proposed-skills.md](15-proposed-skills.md) | Index of existing repository skills |
 
-When you finish a meaningful piece of work, update the file it affects —
-a new decision goes in `05`, a bug you fixed goes in `06`, a new module goes
-in `03`. Treat these as source files, not documentation debt. If something
-here contradicts the code, **the code is right and this file is a bug**:
-fix it in the same commit.
+## Deferred research
+
+[12-spectrum-job-cost-plan.md](12-spectrum-job-cost-plan.md) and
+[13-cloud-durability-and-non-llm-autocount.md](13-cloud-durability-and-non-llm-autocount.md)
+retain historical research. Their old task numbers, completion statements,
+product/model claims and owner-action lists are not current dispatch
+instructions. Revalidate relevant assumptions if that work is assigned.
+
+## Maintaining the pack
+
+Keep one current execution queue. Update code facts when implementation changes.
+Record evidence with date and tree identity; never replace "not run" with an old
+pass. Preserve historical results as historical. If code differs from intended
+behavior, investigate whether the code or docs need correction rather than
+assuming the code is automatically right.
+
+During parallel implementation only the coordinator edits shared status docs;
+workers use individual handoffs. No worker has been dispatched by this
+documentation update.

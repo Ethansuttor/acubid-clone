@@ -5,6 +5,13 @@ description: Change anything that produces a post-award dollar, hour, or percent
 
 # Changing post-award money
 
+This is deferred guidance for explicitly assigned post-award work.
+[The current parallel plan](../../../.ai/18-parallel-execution-plan.md) does
+not assign billing, WIP, or ERP implementation. The historical Spectrum plan
+is a research input, not verified current accounting policy. Confirm intended
+semantics and independent examples before implementing financial outputs.
+A user instruction overrides the older plan's scope preferences.
+
 Pre-award, a wrong number loses a bid. Post-award, a wrong number tells the
 owner a losing job is profitable for six months. The plan is
 `.ai/12-spectrum-job-cost-plan.md`; §5 there is the formula reference. This
@@ -98,8 +105,9 @@ shape of expensive mistake this codebase is built to refuse.
 
 Approved change orders and issued pay applications are frozen. Corrections
 are **reversing documents**, never edits. A pay application is a legal
-instrument; it must reproduce byte-identically years later, so it carries its
-own frozen payload — reuse the `BidSnapshot` pattern rather than inventing a
+instrument; its captured inputs and results must remain reproducible years later. A frozen
+payload alone does not ensure byte-identical rendering; retain the issued
+artifact if that is required. It carries its own frozen payload — reuse the `BidSnapshot` pattern rather than inventing a
 second freezing mechanism.
 
 ## 7. Billing blockers

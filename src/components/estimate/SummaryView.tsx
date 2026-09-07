@@ -14,10 +14,13 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/store/workspace";
 import {
+  bidBreakdown,
   estimateTotals,
   extendEstimate,
   layerQuantities,
   summarize,
+  type BidBreakdown,
+  type BreakdownDimension,
 } from "@/lib/estimate";
 import { exportToExcel } from "@/lib/excel";
 import { bidPreflight, type BidPreflight, type PreflightCheck } from "@/lib/preflight";
@@ -49,6 +52,7 @@ export default function SummaryView() {
     tone: "success" | "error";
     text: string;
   } | null>(null);
+  const [dimension, setDimension] = useState<BreakdownDimension>("system");
 
   const project = ws.project;
   const estimate = useMemo(() => {
@@ -60,7 +64,7 @@ export default function SummaryView() {
       ws.assemblies,
       ws.assemblyItems
     );
-    const summary = summarize({
+    const summaryInput = {
       ...estimateTotals(lines),
       laborRate: project.labor_rate,
       wastePct: project.waste_pct,
@@ -74,10 +78,13 @@ export default function SummaryView() {
       escalationPct: project.escalation_pct,
       bondPct: project.bond_pct,
       directCosts: ws.directCosts,
-    });
+    };
+    const summary = summarize(summaryInput);
     return {
       issues,
       summary,
+      lines,
+      summaryInput,
       preflight: bidPreflight({
         project,
         sheets: ws.sheets,
@@ -103,6 +110,14 @@ export default function SummaryView() {
     ws.pendingWrites,
     ws.saveState,
   ]);
+
+  const breakdown = useMemo(
+    () =>
+      estimate
+        ? bidBreakdown(estimate.lines, ws.layers, estimate.summaryInput, dimension)
+        : null,
+    [estimate, ws.layers, dimension]
+  );
 
   if (!project || !estimate) return null;
   const activeProject = project;
@@ -171,23 +186,23 @@ export default function SummaryView() {
 
   return (
     <div className="blueprint h-full overflow-auto">
-      <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mx-auto max-w-[1240px] px-5 py-5">
         {issues.some((i) => i.severity === "missing") && (
           <div
             className="panel mb-4 border-l-2 !border-l-[var(--color-danger)] px-4 py-2 text-xs text-[var(--color-danger)]"
             role="alert"
           >
-            <span className="font-mono uppercase tracking-widest">
+            <span className="font-semibold">
               {issues.filter((i) => i.severity === "missing").length} layer(s) carry quantity
               that is missing from this bid
             </span>{" "}
-            — see the Estimate tab.
+            See the Estimate tab.
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="panel w-full lg:w-72 shrink-0 self-start p-5">
-            <div className="titlebar mb-4">Rates &amp; markups</div>
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="panel w-full lg:w-[300px] shrink-0 self-start px-4 py-3">
+            <div className="titlebar mb-2">Rates &amp; markups</div>
             <Field
               testId="labor-rate"
               label="Labor rate ($/hr)"
@@ -220,7 +235,7 @@ export default function SummaryView() {
               testId="labor-burden-pct"
               label="Labor burden (%)"
               percent
-              hint="Payroll tax, insurance, fringe — % of labor cost"
+              hint="Payroll tax, insurance, fringe. % of labor cost."
               value={activeProject.labor_burden_pct}
               onCommit={(v) => ws.updateProject({ labor_burden_pct: v })}
             />
@@ -228,7 +243,7 @@ export default function SummaryView() {
               testId="small-tools-pct"
               label="Small tools (%)"
               percent
-              hint="Consumables — % of labor cost, typically 1–3"
+              hint="Consumables. % of labor cost, typically 1 to 3."
               value={activeProject.small_tools_pct}
               onCommit={(v) => ws.updateProject({ small_tools_pct: v })}
             />
@@ -295,7 +310,7 @@ export default function SummaryView() {
             <PreflightPanel preflight={preflight} />
 
             <div className="panel p-6">
-              <div className="titlebar mb-4">Bid summary — {activeProject.name}</div>
+              <div className="titlebar mb-4">Bid summary: {activeProject.name}</div>
               <Row label="Material from takeoff" value={`$${fmt(s.materialBase)}`} />
               {s.wastePct !== 0 && (
                 <Row label={`Waste (${s.wastePct}%)`} value={`$${fmt(s.wasteAmount)}`} />
@@ -381,8 +396,8 @@ export default function SummaryView() {
                 aria-live="polite"
                 aria-atomic="true"
               >
-                <span className="font-mono text-sm tracking-widest text-[var(--color-fg-dim)]">
-                  BID PRICE
+                <span className="text-sm font-semibold text-[var(--color-fg)]">
+                  Bid price
                 </span>
                 <span
                   className="num text-2xl font-bold text-[var(--color-volt)]"
@@ -392,6 +407,14 @@ export default function SummaryView() {
                 </span>
               </div>
             </div>
+
+            {breakdown && (
+              <BreakdownPanel
+                breakdown={breakdown}
+                dimension={dimension}
+                onDimensionChange={setDimension}
+              />
+            )}
 
             <RevisionHistory
               snapshots={ws.snapshots}
@@ -434,7 +457,7 @@ export default function SummaryView() {
                           data-testid="direct-cost-desc"
                           className="input !border-transparent !bg-transparent"
                           aria-label={`Description for direct cost ${c.description || "new cost"}`}
-                          placeholder="e.g. Switchgear quote — ACME Supply"
+                          placeholder="e.g. Switchgear quote, ACME Supply"
                           value={c.description}
                           onChange={(e) =>
                             ws.upsertDirectCost({ ...c, description: e.target.value })
@@ -517,7 +540,7 @@ export default function SummaryView() {
                     <tr>
                       <td colSpan={6} className="py-4 text-center text-[var(--color-fg-faint)]">
                         Gear quotes, lighting packages, subcontractors, permits, equipment
-                        rental, bonds — anything not coming from takeoff.
+                        rental, bonds, anything not coming from takeoff.
                       </td>
                     </tr>
                   )}
@@ -531,13 +554,138 @@ export default function SummaryView() {
   );
 }
 
+const DIMENSIONS: { value: BreakdownDimension; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "area", label: "Area" },
+  { value: "phase", label: "Phase" },
+];
+
+/**
+ * Bid split by a layer tag, for bid leveling and scope letters. Each row is
+ * that group's real share of the bid price — the same math as the bid itself,
+ * run on the group's own base — so the rows sum to the total shown above.
+ * If they ever do not, this panel says so instead of showing the numbers.
+ */
+function BreakdownPanel({
+  breakdown,
+  dimension,
+  onDimensionChange,
+}: {
+  breakdown: BidBreakdown;
+  dimension: BreakdownDimension;
+  onDimensionChange: (value: BreakdownDimension) => void;
+}) {
+  const untagged = breakdown.groups.find((g) => g.kind === "takeoff" && g.key === "");
+  return (
+    <section
+      className="panel mt-4 overflow-x-auto"
+      aria-labelledby="bid-breakdown-heading"
+      data-testid="bid-breakdown"
+    >
+      <div className="titlebar flex items-center justify-between gap-3 px-3 py-2">
+        <span id="bid-breakdown-heading">Bid breakdown</span>
+        <div className="flex items-center gap-1">
+          {DIMENSIONS.map((d) => (
+            <button
+              key={d.value}
+              className={`btn !px-2 !py-0.5 text-xs ${dimension === d.value ? "btn-primary" : ""}`}
+              aria-pressed={dimension === d.value}
+              onClick={() => onDimensionChange(d.value)}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!breakdown.reconciles ? (
+        <p
+          className="px-3 py-3 text-xs leading-5 text-[var(--color-danger)]"
+          data-testid="breakdown-mismatch"
+        >
+          The breakdown does not add up to the bid price (off by $
+          {fmt(Math.abs(breakdown.reconciliationError))}). It is withheld rather than shown
+          disagreeing with the total above. Re-open the project and report this.
+        </p>
+      ) : breakdown.groups.length === 0 ? (
+        <p className="px-3 py-3 text-xs text-[var(--color-fg-faint)]">
+          Nothing is priced yet.
+        </p>
+      ) : (
+        <>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-[var(--color-fg-dim)]">
+                <th className="px-3 py-1.5 font-medium">{DIMENSIONS.find((d) => d.value === dimension)?.label}</th>
+                <th className="px-3 py-1.5 text-right font-medium">Material</th>
+                <th className="px-3 py-1.5 text-right font-medium">Hours</th>
+                <th className="px-3 py-1.5 text-right font-medium">Labor</th>
+                <th className="px-3 py-1.5 text-right font-medium">Share of bid</th>
+                <th className="px-3 py-1.5 text-right font-medium">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {breakdown.groups.map((g) => (
+                <tr
+                  key={g.kind === "direct-costs" ? "__dc" : `k:${g.key}`}
+                  className="border-t border-[var(--color-line)]"
+                >
+                  <td className="px-3 py-1.5">
+                    <span
+                      className={
+                        g.kind === "direct-costs" || g.key === ""
+                          ? "text-[var(--color-fg-dim)] italic"
+                          : ""
+                      }
+                    >
+                      {g.label}
+                    </span>
+                    {g.kind === "takeoff" && (
+                      <span className="ml-2 text-[10.5px] text-[var(--color-fg-faint)]">
+                        {g.layerCount} {g.layerCount === 1 ? "layer" : "layers"}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num px-3 py-1.5 text-right">${fmt(g.materialTotal)}</td>
+                  <td className="num px-3 py-1.5 text-right">{fmt(g.laborHoursTotal)}</td>
+                  <td className="num px-3 py-1.5 text-right">${fmt(g.laborCost)}</td>
+                  <td className="num px-3 py-1.5 text-right font-semibold">${fmt(g.bidPrice)}</td>
+                  <td className="num px-3 py-1.5 text-right text-[var(--color-fg-dim)]">
+                    {fmt(g.pctOfBid, 1)}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-[var(--color-line)] font-semibold">
+                <td className="px-3 py-1.5">Bid price</td>
+                <td colSpan={3} />
+                <td className="num px-3 py-1.5 text-right text-[var(--color-volt)]">
+                  ${fmt(breakdown.allocated)}
+                </td>
+                <td className="num px-3 py-1.5 text-right text-[var(--color-fg-dim)]">100.0%</td>
+              </tr>
+            </tfoot>
+          </table>
+          {untagged && (
+            <p className="border-t border-[var(--color-line)] px-3 py-2 text-[11px] leading-4 text-[var(--color-fg-dim)]">
+              ${fmt(untagged.bidPrice)} sits on layers with no {dimension} assigned. Tag them in
+              the Takeoff tab to move that scope into a named group.
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 function PreflightPanel({ preflight }: { preflight: BidPreflight }) {
   const tone = preflight.ready ? "success" : "danger";
   return (
     <section
       className={`panel mb-4 overflow-hidden border-l-2 ${
         preflight.ready
-          ? "!border-l-[var(--color-success)]"
+          ? "!border-l-[var(--color-ok)]"
           : "!border-l-[var(--color-danger)]"
       }`}
       aria-labelledby="bid-preflight-heading"
@@ -548,7 +696,7 @@ function PreflightPanel({ preflight }: { preflight: BidPreflight }) {
           <span
             className={`mt-0.5 grid size-8 shrink-0 place-items-center border ${
               preflight.ready
-                ? "border-[var(--color-success)] text-[var(--color-success)]"
+                ? "border-[var(--color-ok)] text-[var(--color-ok)]"
                 : "border-[var(--color-danger)] text-[var(--color-danger)]"
             }`}
           >
@@ -568,9 +716,9 @@ function PreflightPanel({ preflight }: { preflight: BidPreflight }) {
           </div>
         </div>
         <span
-          className={`shrink-0 border px-2 py-1 font-mono text-[10px] uppercase tracking-widest ${
+          className={`shrink-0 border px-2 py-1 text-[11px] font-semibold ${
             tone === "success"
-              ? "border-[var(--color-success)] text-[var(--color-success)]"
+              ? "border-[var(--color-ok)] text-[var(--color-ok)]"
               : "border-[var(--color-danger)] text-[var(--color-danger)]"
           }`}
         >
@@ -679,7 +827,7 @@ function RevisionHistory({
             data-testid="snapshot-status"
             className={`text-xs sm:col-span-2 ${
               message.tone === "success"
-                ? "text-[var(--color-success)]"
+                ? "text-[var(--color-ok)]"
                 : "text-[var(--color-danger)]"
             }`}
             role="status"
@@ -781,8 +929,8 @@ function Field({
   const looksLikeFraction = percent && value > 0 && value < 1;
   const inputId = testId ? `field-${testId}` : `field-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
   return (
-    <div className="mb-3">
-      <label htmlFor={inputId} className="titlebar mb-1 block">
+    <div className="rate-row">
+      <label htmlFor={inputId} className="rate-row-label">
         {label}
       </label>
       <NumInput
@@ -793,12 +941,12 @@ function Field({
         testId={testId}
       />
       {looksLikeFraction && (
-        <div data-testid="pct-hint" className="mt-0.5 text-[10px] text-[var(--color-volt)]">
-          {value} means {value}% — type {value * 100} for {value * 100}%
+        <div data-testid="pct-hint" className="rate-row-note text-[var(--color-volt)]">
+          {value} means {value}%. Type {value * 100} for {value * 100}%.
         </div>
       )}
       {hint && !looksLikeFraction && (
-        <div className="mt-0.5 text-[10px] text-[var(--color-fg-faint)]">{hint}</div>
+        <div className="rate-row-note text-[var(--color-fg-faint)]">{hint}</div>
       )}
     </div>
   );

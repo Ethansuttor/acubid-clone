@@ -17,8 +17,8 @@ becomes a wrong number on a bid.
 
 ## Terms
 
-**Takeoff** — measuring/counting scope off drawings. Three shapes, which is
-why the app has exactly three tools:
+**Takeoff** — measuring/counting scope off drawings. Three measurement
+shapes are supported alongside selection, calibration, and symbol search:
 - **Count** — discrete devices (receptacles, fixtures, switches). Unit `EA`.
 - **Linear** — runs of conduit, wire, cable tray. Unit `FT`.
 - **Area** — floor areas, often for allowances. Unit `SF`.
@@ -34,9 +34,9 @@ scale text — see the warnings there.
 and a **labor unit**.
 
 **Labor unit** — the hours to install one unit of an item. This is the heart
-of estimating. Published databases (NECA, Accubid) sell these; this app
-deliberately makes the user own theirs, because a database tuned to the
-contractor's own crews is more accurate than a purchased one.
+of estimating. This app uses contractor-supplied labor units. Their accuracy
+must be checked against the intended work and reference jobs; being locally
+maintained does not by itself make a labor database more accurate.
 
 **Assembly** — a named bundle that expands into component items. Taking off
 one "20A duplex receptacle" pulls in the device, plate, box, mud ring,
@@ -62,10 +62,15 @@ conditions: work above 10 feet, occupied buildings, night shifts, congested
 ceilings. Can be negative for favourable conditions. Adjusts **hours**, not
 the rate.
 
-**Prime cost** — material + labor before overhead and profit.
+**Prime cost** — in the current engine, material total + burdened labor +
+small tools + O&P-applicable direct costs and their tax, before contingency,
+overhead, and profit. See `summarize()` for the implemented order.
 
 **Overhead (O/H)** — the contractor's cost of being in business, as a
-percentage. **Profit** — margin on top. Together, **O&P**.
+percentage. **Profit** — currently a markup on the subtotal after overhead,
+not a target gross margin. For example, 10% markup on $100 yields $110;
+10% margin on the selling price would require $100 / 0.90. Do not interchange
+the two policies. Together, overhead and profit are **O&P**.
 
 **Direct job costs** — real costs that don't come from takeoff: switchgear
 and lighting-package **quotes** from suppliers, **subcontractors** (fire
@@ -81,8 +86,8 @@ ambiguity. Asked before bid it is free; asked after award it is a fight.
 
 **Homerun** — the conduit/wire run from a device back to the panel.
 
-**Bid leveling** — the GC comparing bids. Needs a breakdown by system, which
-is why per-system reporting is on the roadmap.
+**Bid leveling** — the GC comparing bids. The current Summary/Excel breakdown
+supports area/system/phase tags; verify its grouping against the user's needs.
 
 ## Units the app understands
 
@@ -107,5 +112,7 @@ own O&P treatment).
 ## Things that are NOT modelled yet
 
 Be honest about these rather than inventing behaviour:
-crew mix and hours-to-duration; per-system recap. Exclusion tracking is in
-progress via proposal entries. See [`09-roadmap.md`](09-roadmap.md).
+crew mix and hours-to-duration; complete circuit derivation; selectable priced
+alternates/scenarios. Per-system breakdown and proposal exclusion text exist;
+exclusion text does not automatically remove takeoff or quoted scope from the
+base bid. See [`09-roadmap.md`](09-roadmap.md).

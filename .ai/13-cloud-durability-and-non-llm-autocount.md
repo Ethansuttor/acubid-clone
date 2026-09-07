@@ -1,5 +1,14 @@
 # Cloud durability and non-LLM auto-count
 
+> Historical research, not the current execution queue (September 7, 2026).
+> Current local storage/recovery work is [track S](14-durability-and-sync-plan.md);
+> detection work is [track V](17-autocount-accuracy-plan.md).
+> Portable backup/restore and rotated/mirrored/optional scaled local matching
+> now exist. Cloud sync, vector-signature counting, learned detectors, and
+> representative real-plan acceptance do not. Provider/model/product details
+> below need fresh verification if pursued. The owner-action list is historical
+> and does not block the personal Windows release or authorize cloud changes.
+
 Last updated: 2026-08-26
 
 ## Product decision

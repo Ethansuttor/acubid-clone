@@ -1,69 +1,71 @@
-# Roadmap
+# Product roadmap
 
-Full reasoning and ranking:
-<https://claude.ai/code/artifact/4e86204c-1fa7-494e-b3f0-5f08efa1ca83>
+Updated September 7, 2026. Execution source:
+[18-parallel-execution-plan.md](18-parallel-execution-plan.md).
 
-Grouped like a drawing set, because these are four different jobs with four
-different payoffs.
+## Next release: dependable personal Windows estimating
 
-## S — Scope & risk (highest value in the product)
+1. Reproduce a completed real estimate with independently checked quantities,
+   catalog data, labor, commercial settings, and output.
+2. Ship a local Electron candidate using bundled Next.js standalone assets.
+3. Add SQLite storage with verified browser-data migration and complete
+   backup/restore, including historical revisions and PDFs.
+4. Improve symbol-search performance and real-plan accuracy with a reproducible
+   evaluation set, keeping every automated candidate subject to review.
+5. Fix the workflow gaps revealed by the estimator's actual job.
 
-| Ref | Feature | Why |
-|---|---|---|
-| S-101 | **Spec book reader** — extract scope-bearing requirements from Division 26 | Spec requirements the drawings never show are the classic post-award surprise |
-| S-102 | **Scope gap audit** — cross-check takeoff against sheet index, legend and spec | Catches whole missing systems before submission |
-| S-103 | **Addendum diff** — what changed between revisions, and which takeoff objects sit in changed regions | Addenda land days before bid day when attention is thinnest |
-| S-104 | **RFI drafter** | Questions asked before bid are free |
+Tracks A, D, S, and V can progress concurrently under the master ownership and
+dependency rules. SQLite integration and shared transport/config edits have
+one integration owner. Cloud sync is not required for the first installer.
 
-## T — Takeoff speed
+## Implemented foundation — do not rebuild from old prompts
 
-| Ref | Feature | Why |
-|---|---|---|
-| T-201 | **Legend → layers** — read the symbol legend, create a pre-linked layer per symbol | Removes the setup tax; symbol-to-item mapping becomes a one-time job |
-| T-202 | **Count everything in one pass** — every legend symbol across every sheet, review queue grouped by symbol | Turns AI counting from a per-symbol tool into how takeoff starts |
-| T-203 | **Circuit derivation** — from a run, derive conductors, terminations, boxes, fittings, supports | This is Accubid's actual moat |
-| T-204 | Detail callout links | Removes the hunt through a 40-sheet set |
+- Count/linear/area takeoff, calibration, rise/drop, typical multipliers.
+- Items, assemblies, CSV import/export, catalog diagnostics.
+- Waste, escalation, material/direct-cost tax, labor factor/burden, small
+  tools, contingency, overhead/profit, and circular final-price bond.
+- Sticky save errors, complete workspace loads, output preflight.
+- Frozen local bid revisions and captured proposal scope.
+- Project archive/restore and portable workspace backup with PDFs.
+- Area/system/phase tagging and reconciled bid breakdown in Summary/Excel.
+- Printable proposal with inclusions/exclusions and reference amounts.
+- Local worker symbol search, optional bounded AI crop review, and proposed
+  sheet metadata/calibration.
 
-## B — Bid & output
+These statements describe implementation, not real-estimator acceptance.
 
-| Ref | Feature | Why |
-|---|---|---|
-| B-301 | **Alternates & scenarios** | Nearly every job asks; cheap now because the math is a pure function |
-| B-302 | **Breakdown by system** (lighting/power/FA/data/feeders/gear) | Required for bid leveling and scope letters |
-| B-303 | **Quote leveling** — extract and compare supplier quotes | The largest numbers on the bid, compared by hand on bid day |
-| B-304 | Proposal & scope letter with inclusions/exclusions | An exclusions list built from the actual estimate is defensible |
-| B-305 | Change order pricing | Keeps the estimate useful past bid day |
+## Remaining product backlog
 
-## O — Operations & trust
+| Reference | Capability | Current boundary / next evidence |
+| --- | --- | --- |
+| B-301 | Priced alternates, allowances, scenarios | Current scope amounts are reference-only; establish inclusion, credits, tax and markup policy first |
+| B-302 | Breakdown by system/area/phase | Implemented; verify expected grouping and reconciliation on the reference job |
+| B-303 | Supplier quote leveling / price versions | Basic direct-cost quotes exist; comparison and price provenance remain open |
+| B-304 | Proposal and scope letter | Basic guarded print output exists; templates and richer issuance workflow are follow-on |
+| B-305 | Change orders | No contract/change-order accounting workflow |
+| S-101/S-102 | Specification reader and scope-gap review | Future proposals tied to cited evidence; no autonomous bid changes |
+| S-103 | Addenda, sheet revisions and comparison | Preserve original drawings/takeoff; changed regions require review |
+| S-104 | RFI drafting | Future drafting workflow; sending requires user instruction |
+| T-201/T-202 | Legend-to-layer and whole-set count | Per-symbol local search exists; measure coverage and review burden before scaling |
+| T-203/T-204 | Circuit derivation and detail links | Domain rules and reference cases needed |
+| O-401 | Actuals-to-labor feedback | Future reviewed suggestions; never silently reprice catalog data |
+| O-402 | Broader audit/revision workflow | Frozen local bids exist; native/cloud coordination and richer comparisons remain |
+| O-403/O-404 | Natural-language queries / team editing | Deferred beyond personal desktop acceptance |
 
-| Ref | Feature | Why |
-|---|---|---|
-| O-401 | **Actuals feedback loop** — import job costs, suggest per-item labor corrections | The compounding advantage nobody can buy off a shelf |
-| O-402 | Bid versions & audit trail | Defensibility when a bid is questioned later |
-| O-403 | Ask the estimate (natural-language queries) | Replaces the pivot-table detour in the last hour |
-| O-404 | Multiple estimators | Decides whether this stays personal or becomes the company's |
+## Follow-on infrastructure
 
-## If you build three things
+Cloud replication with idempotent receipts, tombstones, conflicts, PDF backups,
+and off-device recovery follows tested local durability. See
+[14-durability-and-sync-plan.md](14-durability-and-sync-plan.md).
 
-1. **S-102 scope gap audit**, fed by S-101. Everything else makes you faster
-   at work you know you have; this tells you about work you didn't know was
-   in the job. Hold it to the review-queue rule — it proposes findings, the
-   estimator accepts them.
-2. **T-201 + T-202**, legend to counted set in one pass. The demo that makes
-   the old tool unusable, and both halves are close to what already works.
-3. **B-301 alternates.** The most common thing a real bid needs that the app
-   cannot express today.
+The [Spectrum/post-award research](12-spectrum-job-cost-plan.md) is deferred.
+Its compatibility claims, cost assumptions, migration names, and domain
+policies need fresh validation before an implementation is assigned. It is
+not another queue to run alongside this release.
 
-## Bid-math gaps a real estimator will hit
+## How priorities change
 
-Flagged by audit; each is small and worth doing before the big features:
-
-- **Labor burden** (payroll tax, insurance, fringe) as its own line — today it
-  must be baked into `$/hr` with nowhere to show a reviewer.
-- **Sales tax on quotes** — tax currently applies only to takeoff material; a
-  $12,000 gear quote gets no tax line and no "tax included?" flag.
-- **Bond as a percentage of bid price** (the standard circular calculation) —
-  bonds exist only as a fixed-dollar direct cost.
-- **Small tools / consumables** (typically 1–3% of labor), **contingency**,
-  **escalation**.
-- **Exclusion tracking**, to prevent double-counting scope a quote covers.
+Use measured discrepancies and the estimator's friction to rank the next
+slice. A feature's presence in an old roadmap is not proof it is missing or
+important now. Record implemented, verified, and estimator-accepted status
+separately; do not mark a plan done from tests of synthetic inputs alone.

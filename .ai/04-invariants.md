@@ -1,8 +1,9 @@
 # Invariants
 
-These are not style preferences. Each one exists because breaking it produced
-a bid that was wrong in a way nobody could see. Violating one is a defect
-even if every test still passes.
+These are correctness and data-integrity requirements for the current product.
+The user's instructions may change product policy; implement such changes
+explicitly, with reference examples and migration/verification where needed.
+Existing architectural mechanisms are replaceable while preserving these outcomes.
 
 ---
 
@@ -19,15 +20,25 @@ a `severity`:
   `uncalibrated`.
 - `severity: "warning"` — priced, but suspect. Kind: `unit-mismatch`.
 
-Issues surface in **three** places and all three must stay in sync:
-the Estimate tab banner, the Summary tab banner, and the top of the Excel
-Summary sheet in red. An exported bid that is quietly incomplete is worse
-than no export.
+Issues surface in the Estimate tab banner, the Summary tab banner, and the top
+of the Excel Summary sheet in red. The proposal does not duplicate those
+details, but its print surface must fail closed to a not-ready notice whenever
+bid preflight has a blocker. An issued bid that is quietly incomplete is worse
+than no output.
 
 The nastiest case is `missing-component`: an assembly whose component item
 was deleted still produces lines, just **short**. That is the plausible
 looking wrong number. If you add a new way for a layer to fail to price,
 add a matching issue kind.
+
+The same rule governs any *split* of the bid. `bidBreakdown()` reports
+untagged layers under "Unassigned" rather than spreading them across the
+tagged groups, and it carries a `reconciles` flag: when the group shares fail
+to sum to `summary.bidPrice`, the Summary panel and the Excel "Breakdown"
+sheet both withhold the split and say why. A breakdown that silently
+disagrees with the total printed beside it is the same class of defect as a
+dropped quantity. See `05-decisions.md` for why the allocation is exact
+rather than pro-rata.
 
 ## 2. Nothing an AI produces reaches the bid unreviewed
 
@@ -79,18 +90,23 @@ of bug this project can have.
 
 ## 7. The Anthropic key never reaches the browser
 
-`ANTHROPIC_API_KEY` is read only in the two API route handlers. The Anthropic
-SDK is imported only by `lib/*/claude.ts`, which are imported only by routes.
-No client component may import them.
+In the running web app, `ANTHROPIC_API_KEY` is read in the two API route
+handlers. Provider modules, including autocount/verify.ts, stay outside client bundles.
+No client component may import them. Planned desktop key storage belongs in
+a privileged process, with no key-read interface exposed to the renderer.
 
-## 8. Local-first architecture and persistence contract parity
+## 8. Local-first persistence and explicit backend contracts
 
 The active application operates in local-first mode (`LOCAL_ONLY = true` in
 `src/lib/local-config.ts`), backed by IndexedDB plus an append-only local outbox
 (`src/lib/localdb.ts`). Legacy localStorage records are migrated on first open.
-All database calls go through the Supabase-shaped query builder contract,
-ensuring strict interface parity for future multi-tenant cloud sync without
-changing UI or store logic.
+Most database calls use a narrow Supabase-shaped query builder; compound
+assembly replacement and backup/restore also call local helpers directly.
+A new backend must cover every path and prove behavioral compatibility with
+contract tests. The current adapter does not provide full SDK parity or sync.
+A saved acknowledgement follows the committed local transaction, not an
+in-memory queue or independently appended log. Desktop SQLite may replace
+the mechanism while preserving the outcome.
 
 ## 9. Fail-closed workspace loading across all 11 entities
 
@@ -113,18 +129,24 @@ The workspace store serializes all mutations through a single FIFO write queue
 - **Invariant:** `saveState` cannot silently revert to `"saved"` if `failedWrites > 0`.
   Edits are not masked as healthy when data loss has occurred.
 
-## 11. Bid preflight gates immutable revision snapshots
+## 11. Bid preflight gates every issued output
 
-Creating a frozen bid snapshot (`createBidSnapshot()`) requires running
-`bidPreflight()`. If any blocker is active (such as an unresolved save error,
-missing quantity, pending AI review, invalid raw input, zero labor rate, or an
-invalid bid total), the snapshot is rejected. When clean, it inserts a deep
-copy under the next revision number in the current local project. The product
-does not update old snapshots. This local guarantee is not a substitute for a
-database uniqueness constraint or multi-user transaction.
+Excel export, proposal printing, and frozen bid snapshots all require
+`bidPreflight().ready`. If any blocker is active (such as an unresolved save
+error, missing quantity, pending AI review, invalid raw input, zero labor rate,
+or an invalid bid total), the output is rejected. Proposal printing must also
+fail closed under browser-level printing such as Ctrl+P, which can bypass a
+disabled application button. Warnings remain advisory and do not block issue.
+
+When clean, `createBidSnapshot()` inserts a deep copy under the next revision
+number in the current local project. The product does not update old snapshots.
+This local guarantee is not a substitute for a database uniqueness constraint
+or multi-user transaction.
 
 ## 12. Report outcomes faithfully
 
 If tests fail, say so with output. If something is unverified, say it is
-unverified. Both AI features have only ever run against mocked responses —
-never describe their real-world accuracy as known.
+unverified. Current provider integration tests use mocked responses, while local symbol
+search is tested with real synthetic PDF pixels. Prior live experiments do
+not establish current real-plan accuracy. Distinguish historical, synthetic,
+mocked, live, and estimator-accepted evidence; never call them interchangeable.

@@ -5,7 +5,9 @@
 // atomically with an append-only outbox entry, and an optional user-selected
 // folder receives a second copy.
 
-import { LOCAL_PASSWORD, LOCAL_USERNAME } from "./local-config";
+import { LOCAL_PASSWORD, LOCAL_USERNAME, WORKSPACE_LOCK } from "./local-config";
+import { validateBackupSnapshot, type BackupData } from "./backup";
+import type { AssemblyItem } from "./types";
 import {
   queueRecoveryMirror,
   queueRecoveryFileMirror,
@@ -34,6 +36,19 @@ type Filter =
 
 interface Mutation extends RecoveryMutation {
   synced_at: string | null;
+}
+
+let localQueue: Promise<unknown> = Promise.resolve();
+
+// The state store contains all tables. Lock the entire read/modify/commit,
+// including across tabs, rather than only serializing individual IDB writes.
+function withLocalLock<T>(job: () => Promise<T>): Promise<T> {
+  const run = async (): Promise<T> => typeof navigator !== "undefined" && navigator.locks
+    ? await navigator.locks.request("voltline-database", job)
+    : await job();
+  const result = localQueue.then(run, run);
+  localQueue = result.catch(() => undefined);
+  return result;
 }
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
@@ -280,6 +295,10 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
   private async run(): Promise<{ data: unknown; error: unknown }> {
     const tables = await readTables();
     let all = [...(tables[this.table] ?? [])];
+    const touchProjects = (rows: Row[]) => {
+      const ids = new Set(rows.map(row => row.project_id));
+      if (tables.projects) tables.projects = tables.projects.map(project => ids.has(project.id) ? { ...project, updated_at: new Date().toISOString() } : project);
+    };
     if (this.op === "insert" || this.op === "upsert") {
       const inserted: Row[] = [];
       for (const raw of this.rows) {
@@ -296,12 +315,14 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
         inserted.push(row);
       }
       tables[this.table] = all;
+      touchProjects(inserted);
       await commitTables(tables, makeMutation(this.table, this.op, inserted));
       return { data: this.wantSingle ? inserted[0] : inserted, error: null };
     }
     if (this.op === "update") {
-      all = all.map((row) => (matches(row, this.filters) ? { ...row, ...this.patch } : row));
+      all = all.map((row) => (matches(row, this.filters) ? { ...row, ...this.patch, ...(this.table === "projects" ? { updated_at: new Date().toISOString() } : {}) } : row));
       tables[this.table] = all;
+      touchProjects(all.filter(row => matches(row, this.filters)));
       await commitTables(
         tables,
         makeMutation(this.table, "update", { filters: this.filters, patch: this.patch })
@@ -313,6 +334,7 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
       tables[this.table] = all.filter((row) => !matches(row, this.filters));
       const fileDeletes: string[] = [];
       cascadeDelete(tables, this.table, doomed, fileDeletes);
+      touchProjects(doomed);
       await commitTables(
         tables,
         makeMutation(this.table, "delete", { filters: this.filters, deleted: doomed }),
@@ -342,7 +364,7 @@ class Query implements PromiseLike<{ data: unknown; error: unknown }> {
     onfulfilled?: ((value: { data: unknown; error: unknown }) => T1 | PromiseLike<T1>) | null,
     onrejected?: ((reason: unknown) => T2 | PromiseLike<T2>) | null
   ): Promise<T1 | T2> {
-    return this.run()
+    return withLocalLock(() => this.run())
       .catch((error: unknown) => ({
         data: null,
         error: {
@@ -420,6 +442,10 @@ export async function exportLocalRecoveryBundle(): Promise<{
   snapshot: RecoverySnapshot;
   files: RecoveryFile[];
 }> {
+  return withLocalLock(readRecoveryBundle);
+}
+
+async function readRecoveryBundle(): Promise<{ snapshot: RecoverySnapshot; files: RecoveryFile[] }> {
   const tables = await readTables();
   const files: RecoveryFile[] = [];
   if (!usesIndexedDb()) {
@@ -452,6 +478,62 @@ export async function exportLocalRecoveryBundle(): Promise<{
     recovery_filename: recoveryFilenameForPath(path),
   }));
   return { snapshot, files };
+}
+
+/** Restore all records and binaries together, without replacing existing work. */
+export async function restoreLocalBackup(data: BackupData): Promise<void> {
+  validateBackupSnapshot(data.snapshot, data.files.map(file => file.path));
+  if (!usesIndexedDb()) throw new Error("Restoring requires IndexedDB browser storage.");
+  await withWorkspaceClosed(() => withLocalLock(async () => {
+    const current = await readTables();
+    if (Object.values(current).some(rows => rows.length > 0)) {
+      throw new Error("Restore requires an empty workspace. Open Voltline in a new browser profile to recover this backup without replacing existing work.");
+    }
+    const db = await openDatabase();
+    const tx = db.transaction(["state", "files", "journal"], "readwrite");
+    const mutation = makeMutation("workspace", "restore", { exported_at: data.snapshot.exported_at });
+    tx.objectStore("state").put(data.snapshot.tables, STATE_KEY);
+    const files = tx.objectStore("files");
+    files.clear();
+    for (const file of data.files) files.put(file.blob, file.path);
+    tx.objectStore("journal").put(mutation);
+    await transactionDone(tx);
+    queueRecoveryMirror(snapshotFor(data.snapshot.tables), mutation);
+    for (const file of data.files) queueRecoveryFileMirror(file.path, file.blob);
+  }));
+}
+
+export async function withWorkspaceClosed<T>(job: () => Promise<T>): Promise<T> {
+  if (typeof navigator === "undefined" || !navigator.locks) throw new Error("This browser cannot protect backup operations. Use a current browser with Web Locks support.");
+  return await navigator.locks.request(WORKSPACE_LOCK, { ifAvailable: true }, async lock => {
+    if (!lock) throw new Error("An estimate is open in another tab. Finish saving and return to Projects in that tab before backing up or restoring.");
+    return await job();
+  });
+}
+
+/** Replace the entire component list in one commit; a failed insert cannot
+ * leave a previously priced assembly missing some or all of its components. */
+export async function replaceLocalAssemblyItems(assemblyId: string, rows: AssemblyItem[]): Promise<{ error: { message: string } | null }> {
+  try {
+    await withLocalLock(async () => {
+      const tables = await readTables();
+      if (!(tables.assemblies ?? []).some(row => row.id === assemblyId)) throw new Error("Assembly no longer exists.");
+      const items = new Set((tables.items ?? []).map(row => row.id));
+      const retained = (tables.assembly_items ?? []).filter(row => row.assembly_id !== assemblyId);
+      const ids = new Set(retained.map(row => row.id));
+      for (const row of rows) {
+        if (!row.id || ids.has(row.id) || row.assembly_id !== assemblyId || !items.has(row.item_id) || !Number.isFinite(row.quantity) || row.quantity < 0) {
+          throw new Error("Invalid assembly component list. The saved components have been preserved.");
+        }
+        ids.add(row.id);
+      }
+      tables.assembly_items = [...retained, ...rows.map(row => ({ ...row }))];
+      await commitTables(tables, makeMutation("assembly_items", "replace", { assemblyId, rows }));
+    });
+    return { error: null };
+  } catch (error) {
+    return { error: { message: error instanceof Error ? error.message : "Assembly components could not be saved." } };
+  }
 }
 
 export function createLocalClient() {
@@ -499,7 +581,7 @@ export function createLocalClient() {
                     ], {
                       type: "application/pdf",
                     });
-              await writeFile(path, blob);
+              await withLocalLock(() => writeFile(path, blob));
               return { data: { path }, error: null };
             } catch (error) {
               return {
@@ -510,7 +592,7 @@ export function createLocalClient() {
           },
           async download(path: string) {
             try {
-              const blob = await readFile(path);
+              const blob = await withLocalLock(() => readFile(path));
               return blob
                 ? { data: blob, error: null }
                 : { data: null, error: { message: "file not found" } };
@@ -523,7 +605,7 @@ export function createLocalClient() {
           },
           async remove(paths: string[]) {
             try {
-              await removeFiles(paths);
+              await withLocalLock(() => removeFiles(paths));
               return { data: paths.map((path) => ({ name: path })), error: null };
             } catch (error) {
               return {

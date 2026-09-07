@@ -26,7 +26,7 @@ test("taxable quote, contingency and circular bond price through the UI", async 
 
   // One direct cost: switchgear quote, O&P applies (default), tax added.
   await page.click('button:has-text("+ Cost")');
-  const row = page.locator("table tbody tr").first();
+  const row = page.getByTestId("direct-cost-row").first();
   await row.locator('input[placeholder^="e.g."]').fill("Switchgear quote");
   await row.locator("input.input-num").fill("10000");
   await row.locator("input.input-num").blur();

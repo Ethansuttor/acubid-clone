@@ -48,6 +48,14 @@ const DB_VERSION = 1;
 const HANDLE_KEY = "recovery-directory";
 let cachedHandle: FileSystemDirectoryHandle | null | undefined;
 let mirrorQueue: Promise<void> = Promise.resolve();
+let mirrorError: string | null = null;
+
+function reportMirrorError(error: unknown): void {
+  mirrorError = error instanceof Error ? error.message : "Recovery folder write failed.";
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("voltline-recovery-status"));
+}
+
+export function recoveryFolderError(): string | null { return mirrorError; }
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -190,10 +198,13 @@ export async function configureRecoveryFolder(
   cachedHandle = handle;
   await writeRecoveryFiles(handle, snapshot);
   for (const file of files) await writeRecoveryPlan(handle, file);
+  mirrorError = null;
+  window.dispatchEvent(new Event("voltline-recovery-status"));
 }
 
-export async function recoveryFolderStatus(): Promise<"unsupported" | "missing" | "ready" | "permission-needed"> {
+export async function recoveryFolderStatus(): Promise<"unsupported" | "missing" | "ready" | "permission-needed" | "error"> {
   if (!recoveryFolderSupported()) return "unsupported";
+  if (mirrorError) return "error";
   const handle = await loadHandle();
   if (!handle) return "missing";
   return (await permission(handle, false)) === "granted" ? "ready" : "permission-needed";
@@ -208,6 +219,7 @@ export function queueRecoveryMirror(snapshot: RecoverySnapshot, mutation: Recove
       await writeRecoveryFiles(handle, snapshot, mutation);
     })
     .catch((error) => {
+      reportMirrorError(error);
       console.error("Recovery folder mirror failed", error);
     });
 }
@@ -220,6 +232,7 @@ export function queueRecoveryFileMirror(path: string, blob: Blob): void {
       await writeRecoveryPlan(handle, { path, blob });
     })
     .catch((error) => {
+      reportMirrorError(error);
       console.error("Recovery folder plan mirror failed", error);
     });
 }

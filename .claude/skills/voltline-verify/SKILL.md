@@ -1,69 +1,56 @@
 ---
 name: voltline-verify
-description: Verify a change to Voltline actually works before reporting it as done — run the unit tests, typecheck, lint, Playwright E2E, and production build, and drive the real UI when a change has a visible surface. Use before committing, before claiming something works, and when writing a new E2E test.
+description: Select and report verification appropriate to a Voltline change, including pure calculation tests, browser workflows, storage failure cases, and packaged Windows acceptance.
 ---
 
-# Verifying Voltline
+# Verification
 
-Run all five. Report what actually happened, including failures and their
-output. Never describe unverified work as done.
+Use [07-verification.md](../../../.ai/07-verification.md) for current commands
+and dated results. The user's task controls scope. Do not run the full app
+suite for a documentation-only correction.
 
-```sh
-npm test                # 368 unit tests, 20 files (~3s)
-npm run typecheck       # tsc --noEmit
-npm run lint            # eslint flat config
-npm run test:e2e        # 12 E2E specs            (~30s)
-npm run bench           # large-estimate benchmark
-npm run build           # production build
-```
+Available commands in the reviewed baseline: npm test, npm run typecheck,
+npm run lint, npm run bench, npm run test:e2e, npm run build,
+npm run eval:local. Desktop scripts are proposed until implemented.
 
-If `vitest: not found`, `node_modules` was pruned between sessions — run
-`npm install`.
+## Choose evidence for the change
 
-## What each one catches
+- Docs: local links, stale instructions, planned/current distinction, diff.
+- Pure math/parsers: independent expected examples plus affected UI/export.
+- UI: relevant browser workflow and visual/interaction verification.
+- Storage: real adapter, transaction failure, reload, migration/restore.
+- Detector: synthetic regressions, actual worker flow, reproducible timing;
+  real labels are needed for real-plan claims.
+- Release: integrated browser tests, packaged Windows lifecycle, installer,
+  migration/backup/crash/upgrade, and known-job acceptance.
 
-- **Unit tests** — the arithmetic. Anchored to a hand-calculated fixture
-  (`tests/fixtures/fixture-project.ts`); see `.ai/07-verification.md` for its
-  expected figures.
-- **Typecheck** — the honest one when you change a shared type. Changing
-  `extendEstimate`'s return type is how every stale call site got found.
-- **Lint** — the flat config surfaces React Compiler errors (`next lint` was
-  removed in Next 16 and the old script silently did nothing).
-- **E2E** — proves the math is actually wired to the UI. Unit tests alone
-  have passed while a feature was unreachable.
-- **Build** — catches server/client boundary mistakes that dev mode tolerates.
+Keep pure-calculation benchmark results separate from save, render, and
+detector latency. Re-run targeted failures after fixes; do not repeatedly
+broaden passing tests without a new concern.
 
-## E2E notes
+## Environment and isolation
 
-The config starts its own dev server on port 3100 in local mode
-(`NEXT_PUBLIC_LOCAL_MODE=1`) and uses the pre-installed Chromium at
-`/opt/pw-browsers/chromium`. Never run `playwright install`. Egress to
-`supabase.co` is blocked in this sandbox, which is why local mode exists.
+Current Playwright config uses localhost:3000 and reuses a server; it prefers
+an explicit browser path or installed Chrome/Edge, then managed Chromium.
+Do not copy old 3100/Linux-only assumptions. Use assigned worktrees, distinct
+ports/profiles when configured, and otherwise serialize browser runs.
 
-`e2e/helpers.ts` provides `signIn`, `clickPdf` (viewer coords → screen),
-`waitSaved`. `window.__ws` is the Zustand store; `window.__voltview` is the
-canvas transform.
+Install needed compatible tooling within the task's authorization. Report
+actual environment failures; do not hide them with skips on required gates.
 
-When writing a spec:
+## Test semantics
 
-- **Use `data-testid`, not positional selectors.** Two specs broke when panels
-  gained inputs and `nth(2)` shifted.
-- Mock `/api/autocount` and `/api/sheetinfo` with `page.route` — there is no
-  `ANTHROPIC_API_KEY` in the dev environment.
-- Auto-count and sheet analysis need a **count** layer active; click a layer
-  row to activate it.
-- Numeric cells render formatted (`1,250.00`) — match the formatted string.
-- Put the hand math in a comment at the top of the spec, as the existing
-  specs do.
+Provider mocks test transport/review behavior, not live accuracy. Local symbol
+search tests use real PDF pixels and the real worker with zero network calls.
+Pending hits count for nothing until accepted; save errors block output;
+accept/reject/undo/save/reload must agree.
 
-## Driving the UI directly
+Use accessible names/roles or stable test IDs rather than positional controls.
+Keep private plans and destructive recovery tests in isolated data roots.
 
-When a change has a visible surface that no spec covers, write a throwaway
-spec in `e2e/zz-tmp-*.spec.ts`, run it, and **delete it afterwards** — one
-was accidentally committed once. Do not leave probe files behind.
+## Report
 
-## Before you report
-
-Say plainly what passed, what failed, and what you did not check. Both AI
-features have only ever run against mocked responses, so their real-world
-accuracy is unknown — do not imply otherwise.
+Date, task, source identity (including dirty changes), command, exit status,
+runtime, artifact path, failures and unverified gates. Historical test counts
+are observations, not a minimum to hit. Do not claim a clean install, power-loss
+guarantee, or contractor acceptance from unit tests alone.

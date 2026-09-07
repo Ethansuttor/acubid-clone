@@ -1,10 +1,10 @@
 // AI auto-count module. Structured with narrow interfaces (SymbolDetector, SymbolVerifier)
 // so detection and verification strategies can be swapped without touching the takeoff UI.
 
-/** Active auto-count strategy: "ncc-verify" (two-stage deterministic NCC + LLM crop verify) or "tile-scan" (whole-tile LLM scan) */
-export const DETECTION_STRATEGY: "ncc-verify" | "tile-scan" = "ncc-verify";
+/** The product defaults to local matching. Legacy strategies remain available to evaluation scripts. */
+export const DETECTION_STRATEGY = "local" as const;
 
-export type DetectionStrategy = "ncc-verify" | "tile-scan";
+export type DetectionStrategy = "local" | "ncc-verify" | "tile-scan";
 
 /** Axis-aligned box; units depend on context (tile px or PDF units). */
 export interface Box {

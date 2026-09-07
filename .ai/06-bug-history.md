@@ -1,5 +1,10 @@
 # Bugs found and fixed
 
+> Historical defect record. Earlier storage implementations and dependency
+> advisories are described at the time of each fix; they are not the current
+> architecture or a fresh security assessment. See [03-architecture.md](03-architecture.md)
+> and [07-verification.md](07-verification.md) for current facts.
+
 Regression memory. Each of these shipped, was caught by an independent audit
 or a test, and is now covered. **Read this before touching a parser or the
 estimate math** — the traps are already mapped.
@@ -154,6 +159,49 @@ tests in `tests/autocount-ncc.test.ts`.
 images, so they passed throughout. Only driving the real UI caught it — which
 is why `voltline-verify` requires E2E for anything with a visible surface.
 
+## 15. Proposal printing bypassed bid preflight (money: critical)
+
+The Summary view correctly blocked Excel export and revision snapshots when
+`bidPreflight()` found missing quantity, pending AI review, save failures,
+invalid inputs, or another hard blocker. The Scope view independently computed
+the live bid price, discarded estimate issues, and always exposed a clean
+customer-facing proposal through `window.print()`.
+
+Disabling its button alone would not have fixed the defect: Ctrl+P and the
+browser menu invoke print directly, and the print stylesheet explicitly hid
+every element except the proposal. An incomplete but plausible low bid could
+therefore be issued with no warning.
+
+**Fix:** Scope now derives the same pure preflight result as Summary. Its print
+button is disabled while blocked, the blocker titles are shown in the view, and
+print media replaces the proposal with a conspicuous not-ready notice. E2E
+coverage exercises empty/blocked and ready bids under both screen and print
+media.
+
+---
+
+## `--color-success` was never defined: every "OK" state rendered wrong
+
+Five call sites across `DataProtectionCard`, `EstimateSetup`, `DatabaseView`
+and `SummaryView` styled their success state with `var(--color-success)`. The
+`@theme` block in `globals.css` defines `--color-ok`; `--color-success` does
+not exist anywhere in the repo.
+
+An undefined custom property is invalid at computed-value time, so `color`
+inherited and `border-color` fell back to `currentColor` instead of failing
+loudly. The visible result: the data-protection checklist rendered its
+warnings in the brand action blue, so "browser storage can be evicted" looked
+like a normal informational row rather than a risk; the estimate-setup
+checkmarks and the preflight "all checks pass" badge lost their green.
+
+Nothing miscalculated, but a durability warning that does not read as a
+warning is exactly the kind of thing a user scrolls past before losing work.
+
+**Fix:** renamed all five references to `--color-ok`, and added
+`--color-warn` for the genuinely amber states the checklist needed. Grep for
+`--color-` tokens that are referenced but never defined when touching theme
+colors; CSS will not tell you.
+
 ---
 
 ## Security fixes
@@ -167,7 +215,9 @@ is why `voltline-verify` requires E2E for anything with a visible surface.
 
 ## Known and accepted
 
-- Two moderate advisories from `exceljs → uuid`; not reachable in our usage.
+- Historical assessment: two moderate advisories from `exceljs → uuid` were
+  considered outside the then-used path. Recheck current advisories and
+  reachability before relying on that assessment.
 - A half-size plot (a drawing printed at 50%) is undetectable from the scale
   text alone. The sheet-analysis dialog says to spot-check a known dimension.
 - `/UserUnit ≠ 1` PDFs would break the 72-units-per-inch assumption. Rare at

@@ -30,6 +30,7 @@ export interface Project {
   bond_pct: number;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
 }
 
 /**
@@ -167,6 +168,8 @@ export interface Takeoff {
   source: TakeoffSource;
   status: TakeoffStatus;
   ai_confidence: number | null;
+  /** Automated candidates remain pending until human confirmation. */
+  detection_review?: "local" | "match" | "no-match" | "unresolved";
 }
 
 /** A frozen, reproducible copy of every input that produced an issued bid. */

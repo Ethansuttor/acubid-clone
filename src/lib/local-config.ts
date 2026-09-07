@@ -8,4 +8,4 @@
 export const LOCAL_ONLY = true;
 export const LOCAL_USERNAME = "1";
 export const LOCAL_PASSWORD = "";
-
+export const WORKSPACE_LOCK = "voltline-workspace-editor";

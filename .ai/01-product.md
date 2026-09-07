@@ -1,68 +1,60 @@
-# The product
+# Product
 
-## Who uses it
+Updated September 7, 2026.
 
-One electrical estimator at an electrical contractor. They currently run
-**Trimble Accubid** (estimating: item database, assemblies, extension, bid
-summary) and **Trimble LiveCount** (on-screen takeoff: counting symbols and
-measuring runs on PDF plan sets). Voltline replaces both for their own
-workflow.
+Voltline supports one electrical estimator's PDF takeoff and bid preparation.
+The near-term target is a dependable Windows application for the user's own
+workflow. Team distribution and post-award accounting are separate future
+scopes, not implied prerequisites.
 
-They are the domain expert. When their description of estimating practice
-conflicts with an assumption in the code, they are right.
+## What usefulness means
 
-## What it must not be
+A user can load actual drawings, calibrate them, count/measure scope, assign
+their items and assemblies, inspect material/labor extensions, apply their
+commercial settings, review omissions, freeze a bid revision, and issue
+consistent outputs. They can close the app and recover their work without
+reconstructing the estimate.
 
-- **Not a clone of Trimble's product.** No Trimble names, UI assets, or
-  licensed item/labor databases anywhere in this codebase. Labor units come
-  from a database the user populates themselves.
-- **Not a demo.** It is used on live bids.
-- **Not "approximately right".** See [`04-invariants.md`](04-invariants.md).
+Accuracy is defined against estimator-approved reference jobs and policies,
+not just tests that reproduce our own implementation. The acceptance protocol
+is [19-real-estimate-acceptance.md](19-real-estimate-acceptance.md).
 
-## The competitive thesis
+## Implemented workflow
 
-Accubid's advantages were a licensed labor-unit database and click-speed on a
-mouse. Neither is where an estimator's money actually goes:
+PDF takeoff includes count, linear/area tools, per-sheet calibration,
+rise/drop, layer multipliers, layers and item/assembly links, edit/undo/redo,
+and pending automated candidates. Local symbol search needs no API key;
+optional provider services review crops and propose title-block metadata.
 
-- **The hours** go to reading specifications, reconciling addenda, and
-  chasing what the drawings don't say — not to clicking receptacles.
-- **The losses** go to scope that was never counted: a fire alarm riser on a
-  sheet nobody opened, a spec line requiring rigid conduit in slab. Speed
-  tools don't protect against omission; comprehension does.
-- **The durable moat** is a labor database that learns from the contractor's
-  own job-cost actuals. A purchased database is the same one the competition
-  bought.
+The database has items, assembly components, CSV import/export, and diagnostics.
+The estimate includes material and labor, burden, direct costs and optional
+tax, waste/escalation, contingency, small tools, overhead/profit, and bond.
+Preflight guards Excel/proposal/snapshot output. Area/system/phase tags support
+a reconciled breakdown. Frozen revisions preserve captured inputs and totals.
 
-That thesis is what makes the AI features strategic rather than decorative,
-and it drives the priorities in [`09-roadmap.md`](09-roadmap.md).
+Project archive/restore, portable workspace backup with PDFs, and an optional
+recovery folder exist. See the current limits in [00-START-HERE.md](00-START-HERE.md).
 
-## Feature inventory (all working)
+## Expectations to keep separate
 
-**Takeoff.** Multi-page PDF plan sets rendered with PDF.js. Per-sheet scale
-calibration by clicking two points and typing a known distance (accepts
-`25`, `25.5`, `25' 6"`). Three tools: count, linear (with a per-run rise/drop
-allowance), area. Color-coded layers, each tied to an item or assembly.
-Markers are editable after the fact — drag to move, drag vertices, delete.
-Unlimited undo/redo. Autosave on every edit. Keyboard-first:
-`V` select, `C` count, `L` linear, `A` area, `K` calibrate, `B` AI count.
+- A Windows installer is not proof of reliable storage or estimator acceptance.
+- A fast calculation benchmark does not measure drawing interaction or saves.
+- Finding a boxed symbol does not establish complete scope comprehension.
+- Proposal allowances/alternates are not selectable priced scenarios.
+- A cloud-shaped adapter is not cloud synchronization.
+- A checksum detects damage; it is not encryption or an independent backup.
 
-**Typical areas.** A per-layer multiplier: take off one floor, apply it to N
-identical floors.
+## Product priorities
 
-**Estimating.** User-owned item database (code, description, unit, material
-cost per unit, labor hours per unit). Assemblies that expand into component
-items. Takeoff quantities extend through items or assemblies into material
-cost and labor hours. CSV import/export for both tables, matched on `code`.
+First: a known completed estimate, a working installer, durable local storage,
+and a tested migration/recovery path. Next: fix observed workflow gaps and
+improve detection using real labeled data. Later: richer scenarios, addenda,
+specification review, supplier/actuals feedback, and explicitly scoped cloud
+or team capabilities.
 
-**Bid.** Material waste %, sales tax %, labor factoring %, direct job costs
-(gear quotes, subs, permits, equipment, bonds) each flagged whether overhead
-and profit apply. Live recalculation. Excel export with Takeoff / Material /
-Labor / Summary sheets.
+Use the contractor's authorized catalog and actual labor/pricing conventions.
+Do not invent supplier prices or proprietary database compatibility.
+The user supplies domain judgments where code cannot establish them.
 
-**AI auto-count.** Draw a box around one example symbol; the sheet is tiled
-into overlapping crops, sent to Claude vision, detections are deduplicated
-across tile seams and land in a keyboard-driven review queue as pending
-markers that count for nothing until accepted.
-
-**AI sheet analysis.** Reads each sheet's title block, proposing a sheet name
-and a calibration derived from the printed drawing scale. Proposals only.
+No replacement-readiness or whole-plan automation claim is established yet.
+The [parallel plan](18-parallel-execution-plan.md) defines evidence gates.

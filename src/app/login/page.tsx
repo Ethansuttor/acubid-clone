@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, HardDrive, Zap } from "lucide-react";
+import { HardDrive, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LOCAL_PASSWORD, LOCAL_USERNAME } from "@/lib/local-config";
 
@@ -35,17 +35,11 @@ export default function LoginPage() {
           <span className="brand-name">Voltline</span>
         </div>
 
-        <div className="mt-10">
-          <div className="eyebrow">Estimator access</div>
-          <h1 id="login-title" className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
-            Open your workspace
-          </h1>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--color-fg-dim)]">
-            This build runs locally on this device. No cloud account or password is required.
-          </p>
-        </div>
+        <h1 id="login-title" className="mt-8 text-lg font-semibold tracking-[-0.02em]">
+          Open your workspace
+        </h1>
 
-        <form onSubmit={signIn} className="mt-8">
+        <form onSubmit={signIn} className="mt-5">
           <label className="field-label" htmlFor="username">
             Username
           </label>
@@ -60,9 +54,8 @@ export default function LoginPage() {
             autoComplete="username"
             aria-describedby="login-help"
           />
-          <div id="login-help" className="mt-2 flex items-center gap-2 text-xs text-[var(--color-fg-dim)]">
-            <Check size={14} className="text-[var(--color-ok)]" />
-            Username is prefilled. Password is disabled in local mode.
+          <div id="login-help" className="mt-2 text-xs text-[var(--color-fg-dim)]">
+            No password in local mode.
           </div>
 
           {error && (
@@ -71,17 +64,14 @@ export default function LoginPage() {
             </div>
           )}
 
-          <button className="btn btn-volt mt-6 h-11 w-full justify-center" disabled={busy} type="submit">
+          <button className="btn btn-volt mt-5 h-10 w-full justify-center" disabled={busy} type="submit">
             {busy ? "Opening workspace…" : "Open workspace"}
-            {!busy && <ArrowRight size={16} />}
           </button>
         </form>
 
-        <div className="mt-8 flex items-center justify-between border-t border-[var(--color-line)] pt-5 text-xs text-[var(--color-fg-dim)]">
-          <span className="inline-flex items-center gap-2">
-            <HardDrive size={14} /> Local storage
-          </span>
-          <span className="status-pill status-pill-neutral">Prototype mode</span>
+        <div className="mt-7 flex items-center gap-2 border-t border-[var(--color-line)] pt-4 text-xs text-[var(--color-fg-faint)]">
+          <HardDrive size={13} />
+          Estimates are stored on this device.
         </div>
       </section>
     </main>

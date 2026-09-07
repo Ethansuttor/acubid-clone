@@ -1,5 +1,15 @@
 # Spectrum → Voltline: post-award job cost, budget and billing
 
+> Historical research, deferred as of September 7, 2026. This is not an active
+> implementation queue. Use [18-parallel-execution-plan.md](18-parallel-execution-plan.md)
+> for current work. The current browser store is IndexedDB, not localStorage;
+> cost/market/compatibility claims and accounting policies below were not
+> revalidated in this documentation review. Cloud is not inherently required
+> for a single-user local ledger; revisit multi-user and recovery requirements
+> when post-award work is assigned. Do not reuse the proposed 0003 migration
+> name (0003_bid_math_gaps.sql already exists), or implement these formulas
+> without reference examples and the contractor's intended policy.
+
 **Written:** August 26, 2026
 **Status:** plan only — no code written, nothing here is implemented.
 **Question it answers:** what does Trimble Viewpoint **Spectrum** do, which of
