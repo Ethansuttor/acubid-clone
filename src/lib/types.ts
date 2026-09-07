@@ -18,8 +18,19 @@ export interface Project {
   tax_pct: number;
   /** Labor productivity adjustment, percent. +15 = conditions cost 15% more hours. */
   labor_factor_pct: number;
+  /** Labor burden (payroll tax, insurance, fringe), percent of bare labor cost. */
+  labor_burden_pct: number;
+  /** Small tools & consumables allowance, percent of bare labor cost. */
+  small_tools_pct: number;
+  /** Contingency, percent of prime cost. Overhead and profit apply to it. */
+  contingency_pct: number;
+  /** Material price escalation, percent of material after waste. Taxed. */
+  escalation_pct: number;
+  /** Bond premium, percent of the FINAL bid price (standard circular calc). */
+  bond_pct: number;
   created_at: string;
   updated_at: string;
+  archived_at?: string | null;
 }
 
 /**
@@ -35,6 +46,13 @@ export interface DirectCost {
   category: DirectCostCategory;
   amount: number;
   ohp_applies: boolean;
+  /**
+   * Sales tax at the project rate is added on top of this amount. Default
+   * false: most quotes arrive tax-included, and silently adding tax would
+   * double-count it. Rows written before this field existed read undefined,
+   * which is treated as false.
+   */
+  taxable?: boolean;
   sort_order: number;
 }
 
@@ -110,6 +128,28 @@ export interface Layer {
   rise_drop_ft: number;
   /** Repeat factor: take off one typical floor, apply it to N identical ones. */
   typical_multiplier: number;
+  /** Bid breakdown dimensions. Empty values mean unassigned. */
+  area?: string;
+  system?: string;
+  phase?: string;
+  sort_order: number;
+}
+
+export type ProposalEntryKind = "inclusion" | "exclusion" | "allowance" | "alternate";
+
+/**
+ * Commercial scope shown beside the base bid. Amounts are deliberately
+ * reference-only until the estimator chooses the accounting treatment; this
+ * prevents an allowance or alternate from silently being counted twice.
+ */
+export interface ProposalEntry {
+  id: string;
+  project_id: string;
+  user_id: string;
+  kind: ProposalEntryKind;
+  description: string;
+  amount: number;
+  pricing_note: string;
   sort_order: number;
 }
 
@@ -128,4 +168,66 @@ export interface Takeoff {
   source: TakeoffSource;
   status: TakeoffStatus;
   ai_confidence: number | null;
+  /** Automated candidates remain pending until human confirmation. */
+  detection_review?: "local" | "match" | "no-match" | "unresolved";
+}
+
+/** A frozen, reproducible copy of every input that produced an issued bid. */
+export interface BidSnapshot {
+  id: string;
+  project_id: string;
+  user_id: string;
+  revision: number;
+  label: string;
+  created_at: string;
+  bid_price: number;
+  material_total: number;
+  labor_hours_total: number;
+  labor_cost: number;
+  warning_count: number;
+  payload: BidSnapshotPayload;
+}
+
+interface BidSnapshotPayloadBase {
+  project: Project;
+  documents: PlanDocument[];
+  sheets: Sheet[];
+  layers: Layer[];
+  takeoffs: Takeoff[];
+  items: Item[];
+  assemblies: Assembly[];
+  assembly_items: AssemblyItem[];
+  direct_costs: DirectCost[];
+  summary: BidSnapshotSummary;
+  preflight: BidSnapshotCheck[];
+}
+
+export interface BidSnapshotPayloadV1 extends BidSnapshotPayloadBase {
+  schema_version: 1;
+}
+
+export interface BidSnapshotPayloadV2 extends BidSnapshotPayloadBase {
+  schema_version: 2;
+  proposal_entries: ProposalEntry[];
+}
+
+export type BidSnapshotPayload = BidSnapshotPayloadV1 | BidSnapshotPayloadV2;
+
+export interface BidSnapshotSummary {
+  material_base: number;
+  material_total: number;
+  labor_hours_base: number;
+  labor_hours_total: number;
+  labor_cost: number;
+  prime_cost: number;
+  overhead: number;
+  profit: number;
+  bid_price: number;
+}
+
+export interface BidSnapshotCheck {
+  id: string;
+  severity: "blocker" | "warning";
+  title: string;
+  detail: string;
 }

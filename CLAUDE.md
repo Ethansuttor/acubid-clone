@@ -1,43 +1,37 @@
 @AGENTS.md
 
-# Voltline — electrical estimating & takeoff
+# Voltline
 
-**New session? Read [`.ai/00-START-HERE.md`](.ai/00-START-HERE.md) first.**
-The [`.ai/`](.ai/README.md) directory is a context pack written specifically
-so you don't have to rediscover this codebase: architecture, the estimating
-domain vocabulary, the invariants, a log of decisions, and every bug already
-found and fixed.
+Start with [.ai/00-START-HERE.md](.ai/00-START-HERE.md).
+The current implementation and execution packets are indexed in
+[.ai/README.md](.ai/README.md).
 
-## The one rule that outranks everything
+For multi-agent work read
+[.ai/18-parallel-execution-plan.md](.ai/18-parallel-execution-plan.md).
+Use [.ai/16-desktop-task-queue.md](.ai/16-desktop-task-queue.md) for assignments.
+Old GD/GA/N queues are superseded. Do not create a second implementation plan.
 
-This app is used on **live electrical bids for real money**. Correctness of
-the arithmetic — quantities, extensions, labor hours, bid totals — outranks
-features, speed, and elegance. A crash is recoverable; a bid that is quietly
-8% short loses a job or wins one at a loss.
+The user's instructions control scope. Routine reversible implementation,
+dependency setup, fixes, and verification within the task do not require
+another owner-approval step. Preserve unrelated changes, coordinate shared-file
+ownership, and ask only for material missing facts or authorization not already
+provided. Do not claim proposed features are implemented.
 
-Concretely, and non-negotiably:
+Use relevant repository skills:
+- estimating-math: quantities, money, parsers, outputs.
+- ai-feature: local detection and optional provider integration.
+- durable-persistence: save/load, backup, migration, restore.
+- desktop-shell: Electron, bridge, packaging, credential custody.
+- schema-migration: domain/backends/old-data compatibility.
+- voltline-verify: selecting and reporting checks.
+- job-cost-math: only when post-award work is explicitly assigned.
 
-- **Quantity is never silently dropped.** If a layer carries takeoff quantity
-  that can't be priced, `extendEstimate` reports an `EstimateIssue` and the
-  UI and Excel export both show it. See `.ai/04-invariants.md`.
-- **Nothing an AI produces reaches the bid unreviewed.** Detections land as
-  pending; sheet analysis returns proposals.
-- **Parsers reject rather than guess.** A plausible wrong number is the most
-  expensive bug this project can have.
-- **All arithmetic lives in `src/lib/estimate.ts` and `src/lib/geometry.ts`**
-  — pure, tested against a hand-calculated fixture. Components never compute.
+Core behavior: unresolved quantities are visible; automated results stay
+pending until confirmed; failed saves block issued outputs; frozen revisions
+remain unchanged; arithmetic comes from shared pure modules and independent
+reference examples. See [.ai/04-invariants.md](.ai/04-invariants.md).
 
-## Working here
-
-- Before changing money or quantity: `.ai/04-invariants.md` and
-  `.ai/06-bug-history.md`. Skills: `estimating-math`, `ai-feature`.
-- Before saying it works: `.ai/07-verification.md`. Skill: `voltline-verify`.
-  Run `npm test`, `npx tsc --noEmit`, `npm run lint`, `npx playwright test`.
-- Do the arithmetic by hand *before* writing the test. Twice a test
-  expectation was wrong and the app was right.
-- Keep `.ai/` current: a new decision goes in `05`, a fixed bug in `06`. If a
-  file there contradicts the code, the code is right — fix the file in the
-  same commit.
-
-Environment quirks (blocked Supabase egress, local mode, the pre-installed
-Chromium) are in `.ai/08-environment.md`.
+Verification is scoped in [.ai/07-verification.md](.ai/07-verification.md).
+The final installed candidate needs browser regression, packaged desktop,
+migration/recovery, and real-estimate acceptance evidence. A docs-only update
+needs documentation checks, not a new application build.

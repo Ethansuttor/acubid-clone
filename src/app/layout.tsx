@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VOLTLINE — Estimating & Takeoff",
+  title: "Voltline Electrical Estimating",
   description: "Electrical estimating and on-screen takeoff",
 };
 

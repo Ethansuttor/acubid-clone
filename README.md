@@ -1,138 +1,171 @@
-# VOLTLINE — Electrical Estimating & Takeoff
+# Voltline — Electrical Estimating & Takeoff
 
-A web app for electrical construction estimating: on-screen takeoff from PDF
-plan sets, a user-editable item/assembly database, live bid summaries, Excel
-export, and AI-assisted symbol counting with a human review queue.
+Voltline is a product workspace for electrical on-screen takeoff and estimating:
+PDF plans, calibrated count/linear/area takeoff, item and assembly catalogs,
+commercial bid math, readiness checks, revision snapshots, Excel export, and
+AI-assisted review workflows.
 
-## Running it
+It is intentionally an application—not a landing page—and is currently a
+single-user, local-only build.
+
+## Windows implementation and parallel AI work
+
+The Windows version is planned; this repo currently runs as a browser app.
+Start with [the parallel execution plan](.ai/18-parallel-execution-plan.md).
+It defines separate desktop, storage/recovery, detection, and real-estimate
+validation tracks, with shared interfaces, file ownership, and release gates.
+
+Use [the coordinator and worker prompts](.ai/16-desktop-task-queue.md) to assign
+work to Codex or another AI. Each worker needs an isolated checkout from the
+same reviewed source baseline; the current dirty tree is not automatically
+included in new worktrees. The first desktop build will bundle Next.js
+standalone inside Electron, with SQLite integrated after contract tests.
+
+The acceptance target is [a known completed bid](.ai/19-real-estimate-acceptance.md)
+reproduced, reopened, migrated, restored, and exported from the installed app.
+See [the docs index](.ai/README.md) for current context and deferred research.
+
+## Run locally
 
 ```sh
 npm install
-cp .env.example .env.local   # then add your ANTHROPIC_API_KEY
+cp .env.example .env.local   # optional; only if .env.local does not already exist
 npm run dev                  # http://localhost:3000
 ```
 
-Configuration lives in `.env.local` (`.env.example` is already pointed at
-the `volt-takeoff` Supabase project):
+Sign in with username **`1`**. The password is intentionally empty and no
+password field is required. Projects, catalog data, snapshots, and plan PDFs
+are stored in IndexedDB. Each mutation is committed with a durable local
+outbox record; the dashboard can request persistent browser storage and mirror
+JSON recovery records plus plan PDFs to a user-selected folder.
 
-```
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-ANTHROPIC_API_KEY=sk-ant-...   # required only for the AI features
-```
+This is development authentication and local-first persistence, not production
+security or cloud backup. Clearing site data can remove the browser copy; use
+the recovery-folder control as a second local copy.
+Supabase packages and historical migrations remain as future compatibility
+work, but the active client does not connect to Supabase or read Supabase
+environment variables.
 
-Sign in with your email. AI auto-count and sheet analysis need your own
-Anthropic API key on the server side; everything else works without it.
+## Protect and recover your work
 
-### Database migrations
+From **Projects → Data protection**, choose **Download backup** to save all
+projects, catalog records, bid revisions and plan PDFs in one `.voltline.json`
+file. Keep it on another drive. The portable format includes a corruption check;
+files are unencrypted and limited to 256 MB (128 MB of PDF input before encoding).
+Larger workspaces can still use the recovery-folder mirror.
 
-Both files in `supabase/migrations/` are already applied to the `volt-takeoff`
-project. For any other database, run them in order in the SQL editor or with
-the Supabase CLI — `0002_bid_math.sql` is **required**, not optional: the app
-writes `waste_pct` / `tax_pct` / `labor_factor_pct` on projects and
-`typical_multiplier` on layers, so creating a project against a database that
-only has `0001` will fail. (Reading direct costs is the one thing that
-degrades quietly, so an un-migrated database shows an empty cost list rather
-than erroring.)
+To test recovery, open Voltline at the same address in a fresh browser profile,
+choose **Restore backup**, select the file, review the project list and click
+**Restore this backup**. Records and plan files restore together. An occupied
+workspace refuses replacement, preserving current work. The portable importer
+accepts files produced by Download backup; folder-mirror JSON is a separate
+recovery format and is not accepted by this control.
 
-Supabase pauses free-tier projects after a stretch of inactivity; restore it
-from the dashboard if sign-in starts failing.
+Archive completed bids from the project row and use **Show archived projects**
+to restore them. Permanent deletion is available from the archive.
 
-**Local mode** (`NEXT_PUBLIC_LOCAL_MODE=1 npm run dev`) replaces Supabase
-with a localStorage-backed store — used for offline dev and for the E2E
-tests in sandboxes without network access to Supabase. Any email/password
-signs in. It is development-only by design: the AI routes only honour the
-local-mode auth bypass when `NODE_ENV !== "production"`, so setting the
-variable on a deployment cannot switch authentication off.
+Only one estimate editing tab can be open per browser profile. Finish saving and
+return to Projects before opening another editor or making a backup. Use a current
+browser with Web Locks support. Within an estimate, expand **Estimate setup** for
+the guided workflow. Save failures remain visible and block issued bid outputs.
+
+See [the local product review](.ai/12-local-product-review.md) for findings,
+verification evidence and remaining release limits.
 
 ## Workflow
 
-1. **Projects** — create a project on the home screen.
-2. **Takeoff tab** — upload a plan set PDF (one sheet per page).
-   - Calibrate each sheet: press `K`, click two points a known distance
-     apart, type the distance (`25`, `25.5`, or `25' 6"`).
-   - Create color-coded layers (count / linear / area) and link each to an
-     item or assembly. Linear layers have a per-run rise/drop allowance.
-   - Tools: `V` select, `C` count, `L` linear, `A` area, `K` calibrate,
-     `B` AI count. `Enter`/double-click/right-click finishes a run, `Esc`
-     cancels, `Delete` removes the selection, `Ctrl+Z`/`Ctrl+Shift+Z`
-     undo/redo (unlimited), wheel zooms, space-drag or middle-drag pans.
-   - Everything autosaves on every edit (watch the saved/saving indicator).
-3. **AI auto-count** — select a count layer, press `B`, drag a box around
-   ONE example symbol. The sheet is tiled into overlapping crops, sent to
-   Claude vision, and deduplicated detections come back as dashed blue
-   PENDING markers. They count for nothing until you accept them:
-   `←`/`→` navigate, `Y` accept, `N` reject, `Shift+A` accept all,
-   `Shift+R` reject all. Review actions are undoable.
-4. **AI sheet analysis** — press *✨ Read* in the Sheets panel and Claude
-   reads each title block, proposing a sheet name and a calibration derived
-   from the printed drawing scale (`1/4" = 1'-0"` → 4 ft per inch of paper →
-   4/72 ft per PDF unit). Proposals are applied only when you confirm, and
-   applying one is undoable. The derivation assumes the PDF was plotted at
-   true size, so spot-check one known dimension before taking off.
-5. **Typical areas** — set a layer's *typical ×* to apply one floor's takeoff
-   to N identical floors. The multiplier shows on the layer and in the export.
-6. **Database tab** — your item database (description, unit, material $,
-   labor hours per unit) and assemblies that expand into component items.
-   *Bulk edit* exports either table to CSV and re-imports it, matching on
-   `code` so re-importing an updated price book keeps every layer link. Rows
-   that can't be read are reported by line number rather than skipped.
-7. **Estimate tab** — every layer extended into item lines (assemblies
-   expanded), plus a per-item material/labor rollup. A red banner lists any
-   layer carrying quantity that cannot be priced — a deleted item, an empty
-   assembly, or an assembly short a deleted component — so quantity is never
-   silently missing from a bid.
-8. **Summary tab** — the full bid, recalculating live:
+1. **Projects** — create or reopen a local estimate.
+2. **Takeoff** — upload a PDF, calibrate sheets, create count/linear/area
+   layers, and link each layer to an item or assembly.
+3. **Symbol search and AI review** — box an example symbol to search locally
+   without an API key. Optional AI reviews ambiguous crops; sheet-reading
+   proposes metadata. All detections remain pending until an estimator confirms them.
+4. **Database** — edit items and assemblies, round-trip CSV pricebooks, and
+   review catalog-health diagnostics for duplicates, empty assemblies,
+   missing component links, and zero prices/labor units.
+5. **Estimate** — inspect extended layer/item lines, material rollup, labor,
+   and any quantity that could not be priced.
+6. **Scope** — classify takeoff by area/system/phase and prepare inclusions,
+   exclusions, allowances, alternates, and a preflight-gated printable proposal.
+7. **Summary** — set rates/markups and direct costs, resolve bid-preflight
+   blockers, export Excel, and create frozen local revision snapshots.
 
-   ```
-   material from takeoff
-     + waste %              (loss allowance)
-     + sales tax %          (on material after waste)
-     = material total
-   labor hours from takeoff
-     ± labor factor %       (job conditions)
-     × labor rate           = labor cost
-   + direct job costs marked "marked up"
-     = prime cost
-     + overhead %  = subtotal
-     + profit %
-   + direct job costs marked "at cost"
-     = BID PRICE
-   ```
+### Takeoff controls
 
-   **Direct job costs** cover everything not from takeoff — gear quotes,
-   lighting packages, subcontractors, permits, equipment rental, bonds —
-   each flagged whether overhead and profit apply or it is carried at cost.
-   *Export to Excel* writes Takeoff / Material / Labor / Summary sheets, and
-   an incomplete bid is flagged in red at the top of the Summary sheet.
+- `V` select, `C` count, `L` linear, `A` area, `K` calibrate, `B` symbol search.
+- `Enter`, double-click, or right-click finishes a run; `Esc` cancels.
+- `Delete` removes the selection; `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo.
+- Wheel zooms; space-drag or middle-drag pans.
 
-## Architecture notes
+Geometry stays in PDF user-space units. Real quantities are derived from the
+current sheet calibration, so recalibration re-derives measurements rather
+than leaving stale feet in storage.
 
-- Geometry is stored in PDF user-space units; quantities are derived
-  through per-sheet calibration at read time, so recalibrating a sheet
-  re-derives every measurement. `src/lib/geometry.ts` and
-  `src/lib/estimate.ts` are the single source of truth for all quantities,
-  dollars, and hours — pure functions, unit-tested against a
-  hand-calculated fixture (`tests/fixtures/fixture-project.ts`).
-- Both AI features are separate modules behind narrow interfaces so the
-  model or prompting can be swapped without touching the UI:
-  `src/lib/autocount/` (`SymbolDetector` — tiling and cross-tile dedup are
-  pure and tested) and `src/lib/sheetai/` (`SheetAnalyzer` — drawing-scale
-  parsing is pure and tested). Each has its Claude prompt isolated in
-  `claude.ts` (default `claude-sonnet-4-6`, override with `ANTHROPIC_MODEL`).
-- Nothing an AI produces reaches the bid unreviewed: auto-count detections
-  land as pending markers, and sheet-analysis results land as proposals.
-- Supabase: schema + RLS in `supabase/migrations/`; plan PDFs live in the
-  private `plans` storage bucket namespaced by user id.
+### Local symbol search
 
-## Tests
+Select a count layer, press `B`, and box one clear symbol with a little whitespace.
+The browser worker checks rotated and mirrored examples across the sheet.
+Choose Broad, Balanced, or Strict matching; enable ±10% size tolerance when
+needed. Cancel search discards the unfinished run. Repeated searches skip
+existing pending and confirmed marks on the same layer.
 
-```sh
-npm test              # vitest: geometry, units, estimate math, bid math,
-                      #         CSV, drawing scales, excel, autocount
-npx playwright test   # E2E: every feature above, against a local-mode dev server
+Local mode sends no images. Optional AI review sends at most 48 ambiguous crops
+in four requests, keeps candidates available if the API fails, and never approves
+quantities. Visual match scores are similarity scores, not accuracy probabilities.
+
+`npm run eval:local` checks the four saved synthetic raster fixtures and exits
+nonzero on missed or extra symbols. Real-plan accuracy remains unverified; see
+[detection verification](.ai/13-image-detection.md) for evidence and limitations.
+
+## Bid math
+
+```text
+material from takeoff + waste + escalation
+  + sales tax on that material = material total
+labor hours × labor factor × rate = bare labor
+bare labor + burden = labor cost
+material + labor + small tools + O&P-applicable direct costs and their tax
+  = prime cost
+prime + contingency + overhead, then profit
+  + at-cost direct costs and their tax = pre-bond total
+pre-bond total / (1 - bond rate) = bid price
 ```
 
-The estimating math is anchored to a hand-calculated fixture project in
-`tests/fixtures/fixture-project.ts` — every dollar and hour in it was worked
-out by hand and is asserted line by line.
+The pure calculation source of truth is `src/lib/estimate.ts`. Preflight in
+`src/lib/preflight.ts` fails closed on unresolved persistence errors, missing
+quantity, pending AI, invalid raw inputs/totals, and other commercial blockers.
+
+## Optional AI in development
+
+Add these only to `.env.local`:
+
+```text
+ANTHROPIC_API_KEY=...
+ANTHROPIC_MODEL=...       # optional
+```
+
+The key is server-only. The local bearer-token bypass in the two AI API routes
+is disabled in production; a production AI deployment needs real server-side
+authentication. Current automated provider tests use mocked responses; local detector tests
+also use real synthetic PDF pixels. Accuracy on representative real plan sets
+remains unverified.
+
+## Verification
+
+```sh
+npm test             # unit tests; dated results in .ai/07-verification.md
+npm run typecheck    # TypeScript
+npm run lint         # ESLint
+npm run bench        # deterministic 10,000-takeoff engine benchmark
+npm run test:e2e     # browser workflows
+npm run build        # production Next.js build
+```
+
+The small fixture in `tests/fixtures/fixture-project.ts` is hand-calculated
+ground truth. The large fixture in `tests/fixtures/large-estimate-fixture.ts`
+is deterministic and used for throughput/integrity benchmarking without a
+fragile millisecond threshold in the normal unit suite.
+
+Read `.ai/00-START-HERE.md` before substantive changes and
+`.ai/04-invariants.md` before touching quantity, money, persistence, or AI
+confirmation behavior.

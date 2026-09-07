@@ -1,0 +1,80 @@
+{
+  "sheet": "E-102",
+  "symbol": "troffer",
+  "scale": 1.5,
+  "strategy": "ncc-verify",
+  "model": "claude-sonnet-4-6",
+  "minScore": 0.45,
+  "groundTruthCount": 50,
+  "detectedRawCount": 327,
+  "dedupedCount": 124,
+  "truePositives": 50,
+  "falsePositives": 0,
+  "falseNegatives": 0,
+  "precision": 1,
+  "recall": 1,
+  "f1": 1,
+  "totalTimeMs": 15205,
+  "tileTimings": [
+    {
+      "tileIndex": 0,
+      "timeMs": 858,
+      "detections": 32
+    },
+    {
+      "tileIndex": 1,
+      "timeMs": 807,
+      "detections": 34
+    },
+    {
+      "tileIndex": 2,
+      "timeMs": 680,
+      "detections": 24
+    },
+    {
+      "tileIndex": 3,
+      "timeMs": 1021,
+      "detections": 36
+    },
+    {
+      "tileIndex": 4,
+      "timeMs": 1783,
+      "detections": 34
+    },
+    {
+      "tileIndex": 5,
+      "timeMs": 1555,
+      "detections": 37
+    },
+    {
+      "tileIndex": 6,
+      "timeMs": 1291,
+      "detections": 34
+    },
+    {
+      "tileIndex": 7,
+      "timeMs": 1181,
+      "detections": 27
+    },
+    {
+      "tileIndex": 8,
+      "timeMs": 1293,
+      "detections": 17
+    },
+    {
+      "tileIndex": 9,
+      "timeMs": 1374,
+      "detections": 19
+    },
+    {
+      "tileIndex": 10,
+      "timeMs": 1017,
+      "detections": 15
+    },
+    {
+      "tileIndex": 11,
+      "timeMs": 1136,
+      "detections": 18
+    }
+  ]
+}

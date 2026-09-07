@@ -4,8 +4,15 @@
 // takeoff markers, zoom/pan, tool interactions, calibration, and editing.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Eye, EyeOff, Layers3 } from "lucide-react";
 import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
-import { loadDocument } from "@/lib/pdf";
+import {
+  inspectOptionalContent,
+  inspectPageStructure,
+  loadDocument,
+  type PdfOptionalContentInspection,
+  type PdfPageStructure,
+} from "@/lib/pdf";
 import { scaleFromCalibration, polylineLength, polygonArea } from "@/lib/geometry";
 import { parseDistanceFt, formatFtIn, fmt } from "@/lib/units";
 import { useWorkspace } from "@/store/workspace";
@@ -46,6 +53,10 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
   const [calibErr, setCalibErr] = useState(false);
   const [dragOverride, setDragOverride] = useState<Map<string, Takeoff["geometry"]>>(new Map());
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [pdfLayers, setPdfLayers] = useState<PdfOptionalContentInspection | null>(null);
+  const [pdfLayerMenu, setPdfLayerMenu] = useState(false);
+  const [pdfLayerVersion, setPdfLayerVersion] = useState(0);
+  const [pdfStructure, setPdfStructure] = useState<PdfPageStructure | null>(null);
 
   const zoom = view.zoom;
 
@@ -60,8 +71,14 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
       try {
         const pdf: PDFDocumentProxy = await loadDocument(doc.id, doc.storage_path);
         const page = await pdf.getPage(sheet.page_number);
+        const [optionalContent, structure] = await Promise.all([
+          inspectOptionalContent(pdf).catch(() => null),
+          inspectPageStructure(page).catch(() => null),
+        ]);
         if (dead) return;
         pageRef.current = page;
+        setPdfLayers(optionalContent);
+        setPdfStructure(structure);
         const vp = page.getViewport({ scale: 1 });
         setPageSize({ w: vp.width, h: vp.height });
         // Fit page into container.
@@ -96,10 +113,31 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
     renderTaskRef.current?.cancel();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const task = page.render({ canvasContext: ctx, viewport: vp });
+    const task = page.render({
+      canvasContext: ctx,
+      viewport: vp,
+      optionalContentConfigPromise: pdfLayers
+        ? Promise.resolve(pdfLayers.config)
+        : undefined,
+    });
     renderTaskRef.current = task;
     task.promise.catch(() => {}); // cancellations are expected
-  }, [pageSize, zoom, sheet?.id]);
+  }, [pageSize, zoom, sheet?.id, pdfLayers, pdfLayerVersion]);
+
+  function togglePdfLayer(id: string) {
+    setPdfLayers((current) => {
+      if (!current) return current;
+      const group = current.groups.find((item) => item.id === id);
+      if (!group) return current;
+      const visible = !group.visible;
+      current.config.setVisibility(id, visible, true);
+      return {
+        ...current,
+        groups: current.groups.map((item) => (item.id === id ? { ...item, visible } : item)),
+      };
+    });
+    setPdfLayerVersion((version) => version + 1);
+  }
 
   // Expose the current view transform for E2E tests.
   useEffect(() => {
@@ -406,6 +444,35 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
         onPointerUp={onPointerUp}
         onContextMenu={(e) => e.preventDefault()}
       >
+        {pdfLayers && pdfLayers.groups.length > 0 && (
+          <div className="absolute right-3 top-3 z-20" onPointerDown={(event) => event.stopPropagation()}>
+            <button
+              className="btn bg-[var(--color-ink-900)] text-xs"
+              type="button"
+              aria-expanded={pdfLayerMenu}
+              onClick={() => setPdfLayerMenu((open) => !open)}
+            >
+              <Layers3 size={14} /> PDF layers ({pdfLayers.groups.length})
+            </button>
+            {pdfLayerMenu && (
+              <div className="panel mt-2 max-h-72 w-72 overflow-auto p-2 shadow-2xl">
+                <div className="titlebar mb-2 px-1">Embedded drawing layers</div>
+                {pdfLayers.groups.map((group) => (
+                  <button
+                    key={group.id}
+                    className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-[var(--color-ink-800)]"
+                    type="button"
+                    aria-pressed={group.visible}
+                    onClick={() => togglePdfLayer(group.id)}
+                  >
+                    {group.visible ? <Eye size={13} className="text-[var(--color-volt)]" /> : <EyeOff size={13} className="text-[var(--color-fg-faint)]" />}
+                    <span className="truncate">{group.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {pageSize && (
           <div
             className="absolute"
@@ -432,7 +499,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
                 const geometry = dragOverride.get(t.id) ?? t.geometry;
                 const selected = ws.selection.has(t.id);
                 const pending = t.status === "pending";
-                const color = pending ? "var(--color-ai)" : layer.color;
+                const color = pending ? "var(--color-pending)" : layer.color;
                 if (t.kind === "count") {
                   const g = geometry as { x: number; y: number };
                   return (
@@ -529,7 +596,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
                   <polyline
                     points={[...draft, ...(cursor ? [cursor] : [])].map((p) => p.join(",")).join(" ")}
                     fill="none"
-                    stroke={ws.tool === "calibrate" ? "var(--color-ai)" : "var(--color-volt)"}
+                    stroke={ws.tool === "calibrate" ? "var(--color-pending)" : "var(--color-volt)"}
                     strokeWidth={mk(2)}
                     strokeDasharray={`${mk(6)} ${mk(4)}`}
                   />
@@ -560,9 +627,9 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
                   y={aiBox.y}
                   width={aiBox.w}
                   height={aiBox.h}
-                  fill="var(--color-ai)"
+                  fill="var(--color-pending)"
                   fillOpacity={0.12}
-                  stroke="var(--color-ai)"
+                  stroke="var(--color-pending)"
                   strokeWidth={mk(1.5)}
                   strokeDasharray={`${mk(5)} ${mk(3)}`}
                   pointerEvents="none"
@@ -586,10 +653,10 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
             CAL 1&quot;={fmt(scale * 72, 1)}&apos;
           </span>
         ) : (
-          <span className="font-mono text-[var(--color-danger)]">UNCALIBRATED — press K</span>
+          <span className="font-mono text-[var(--color-danger)]">UNCALIBRATED · press K</span>
         )}
         {ws.tool === "calibrate" && (
-          <span className="text-[var(--color-ai)]">
+          <span className="text-[var(--color-pending)]">
             Calibration: click two points a known distance apart{draft.length === 1 ? " (1 of 2)" : ""}
           </span>
         )}
@@ -600,7 +667,16 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
           </span>
         )}
         {ws.tool === "aibox" && (
-          <span className="text-[var(--color-ai)]">Drag a box around ONE example symbol</span>
+          <span className="text-[var(--color-pending)]">Drag a box around ONE example symbol</span>
+        )}
+        {pdfStructure && (
+          <span className="text-[var(--color-fg-faint)]" title={`${pdfStructure.operator_count} PDF drawing operators; ${pdfStructure.text_item_count} text items; ${pdfStructure.image_paint_count} raster images`}>
+            {pdfLayers?.groups.length
+              ? `${pdfLayers.groups.length} PDF layers`
+              : pdfStructure.has_searchable_text
+              ? "PDF text/vector data"
+              : "Flattened/raster PDF"}
+          </span>
         )}
         <span className="ml-auto num text-[var(--color-fg-faint)]">
           {cursor && scale != null
@@ -611,14 +687,21 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
 
       {/* calibration distance dialog */}
       {calibAsk && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50">
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="calib-title"
+        >
           <div className="panel w-[320px] p-5">
-            <div className="titlebar mb-3">Calibrate sheet scale</div>
-            <div className="mb-2 text-sm text-[var(--color-fg-dim)]">
+            <div id="calib-title" className="titlebar mb-3">Calibrate sheet scale</div>
+            <label htmlFor="calib-input" className="mb-2 block text-sm text-[var(--color-fg-dim)]">
               Real-world distance between the two points:
-            </div>
+            </label>
             <input
               autoFocus
+              id="calib-input"
+              aria-label="Real-world distance"
               className="input input-num mb-1"
               placeholder={`e.g. 25' 6"`}
               value={calibText}
@@ -629,7 +712,7 @@ export default function SheetCanvas({ onAiBox }: { onAiBox?: (rect: AiBoxRect) =
               }}
             />
             {calibErr && (
-              <div className="mb-2 text-xs text-[var(--color-danger)]">
+              <div className="mb-2 text-xs text-[var(--color-danger)]" role="alert">
                 Enter a distance like 25, 25.5, or 25&apos; 6&quot;
               </div>
             )}

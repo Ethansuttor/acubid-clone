@@ -1,0 +1,18 @@
+{
+  "sheet": "E-101",
+  "symbol": "duplex",
+  "scale": 3.272727272727273,
+  "strategy": "ncc-verify",
+  "model": "claude-sonnet-4-6",
+  "minScore": 0.5,
+  "groundTruthCount": 27,
+  "detectedRawCount": 30,
+  "dedupedCount": 30,
+  "truePositives": 27,
+  "falsePositives": 3,
+  "falseNegatives": 0,
+  "precision": 0.9,
+  "recall": 1,
+  "f1": 0.9473684210526316,
+  "totalTimeMs": 20642
+}

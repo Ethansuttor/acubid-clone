@@ -1,102 +1,56 @@
 ---
 name: ai-feature
-description: Add or change an AI-powered feature in Voltline — symbol auto-count, sheet/title-block analysis, or a new one such as spec reading, scope gap audit, addendum diff, or quote leveling. Covers the SymbolDetector/SheetAnalyzer module boundary, the mandatory human review queue, prompt and parsing discipline, and the server-only API-key rule.
+description: Change Voltline local symbol detection, optional AI crop verification, sheet analysis, or explicitly assigned AI review features. Preserve pending quantities, bounded transport, private-key isolation, and honest evaluation.
 ---
 
-# Adding an AI feature
+# Detection and AI review
 
-Every AI feature here touches a number the estimator signs their name to.
-The discipline below is what makes the existing ones trustworthy; a new one
-inherits all of it.
+Read [track V](../../../.ai/17-autocount-accuracy-plan.md) and
+[invariants](../../../.ai/04-invariants.md). Coordinate shared pipeline and
+transport edits with D3 under the [parallel plan](../../../.ai/18-parallel-execution-plan.md).
 
-## 1. Nothing reaches the bid unreviewed
+The current default locates symbols with local worker matching. Provider
+verification is optional and bounded; the old whole-tile LLM path is legacy.
+Inspect SymbolSearch.tsx, pipeline.ts, local.ts/ncc.ts, and the review wrapper
+before changing code. Do not assume orchestration still lives in AutoCount.tsx.
 
-This is non-negotiable.
+## Review and errors
 
-- **Auto-count** writes detections with `status: "pending"`, `source: "ai"`.
-  Only `status === "confirmed"` counts — `countableTakeoffs` is an allowlist.
-- **Sheet analysis** returns *proposals*; applying one is an explicit click
-  and is undoable.
+All automated candidates remain pending until human confirmation. Only
+confirmed takeoffs affect quantity. Sheet metadata/calibration is proposed,
+explicitly applied, and undoable. New scope/quote features inherit this
+review boundary.
 
-A new feature must land its output in a reviewable state, not in the
-estimate. For a scope audit that means proposed findings the estimator
-accepts; for quote leveling, extracted lines they confirm before pricing.
+Local similarity scores are not probabilities. Preserve candidates when
+provider responses are absent, malformed, negative, or failed; do not silently
+delete local results based on AI judgment. Local-only mode makes zero requests.
+Cancellation adds no unfinished partial result.
 
-Make review **fast**, or it won't be used: keyboard-driven, bulk accept with
-spot rejection. Auto-count uses `←`/`→`, `Y`, `N`, `Shift+A`, `Shift+R`.
+Retain current verification limits: 48 crops/run, 12/request, 256x256 maximum
+crop size and 2 MB request. Validate responses against requested IDs and bound
+input before expensive work. Keep coordinate transforms and matching pure
+where possible and unit-test seams/edges/rotations.
 
-## 2. Keep the model behind an interface
+## Provider boundary
 
-Existing boundaries, both in `src/lib/`:
+Use the existing SymbolDetector, SymbolVerifier, and SheetAnalyzer contracts.
+Provider SDK imports live in privileged provider modules, including verify.ts;
+none belong in a client bundle. Browser keys remain server-side; desktop keys
+remain in a privileged process with no renderer key-read command.
 
-```ts
-interface SymbolDetector {           // autocount/types.ts
-  readonly model: string;
-  detectInTile(templatePng, tilePng, hint): Promise<Detection[]>;
-}
+Both web API routes reject production requests today. Keep the development
+bypass gated. A desktop transport is separate from hosted authentication.
+Verify actual model availability for authorized live work; do not invent
+model names or initiate paid sweeps from historical prompts.
 
-interface SheetAnalyzer {            // sheetai/types.ts
-  readonly model: string;
-  analyzeSheet(pngDataUrl): Promise<SheetInfo>;
-}
-```
+## Evidence
 
-Follow the same shape:
+Synthetic correctness, mocked API behavior, live provider results, and
+real-plan acceptance are different evidence. Reproduce failures before tuning.
+Retain the thin/sparse/faint/seam regressions and measure count-plus-review
+time, not only matcher throughput. Use project-level holdouts and independent
+labels for real accuracy claims.
 
-- `types.ts` — the interface and its data types
-- pure helpers (`tiling.ts`, `dedupe.ts`, `scale.ts`) — **no model, no I/O,
-  fully unit-tested**
-- `claude.ts` — the only file importing `@anthropic-ai/sdk`; prompt and model
-  choice isolated here. Default `claude-sonnet-4-6`, `ANTHROPIC_MODEL`
-  overrides.
-
-The route types its instance as the interface, so swapping providers is one
-constructor line with zero UI impact.
-
-## 3. Put the hard part in a pure, tested function
-
-The risky logic is never the API call — it's what surrounds it:
-
-- tiling with overlap so a symbol on a seam is whole in some tile
-- cross-tile deduplication (greedy NMS by IoU and centre distance)
-- **parsing model output**, which must tolerate prose, code fences, and
-  malformed entries, and drop what it cannot read
-
-`parseDrawingScale` is the cautionary tale: it read a sheet size as an inches
-term and returned a scale 3× too long, which would have mis-measured every
-run on the sheet. It now requires explicit markers and returns `null` on
-ambiguity. See `.ai/06-bug-history.md`.
-
-**Reject rather than guess.** Returning nothing is cheap; returning a
-plausible wrong number is what loses a bid.
-
-## 4. Server-only key
-
-`ANTHROPIC_API_KEY` is read **only** in `src/app/api/*/route.ts`. The SDK is
-imported only by `lib/*/claude.ts`, imported only by routes. No client
-component may import them.
-
-Route checklist (copy the existing two):
-auth check → API-key check with a clear 503 → body-size cap → validate and
-bound the input count → bounded-concurrency fan-out (4) → isolate per-item
-failures so one bad tile doesn't fail the batch.
-
-The local-mode auth bypass must stay gated on `NODE_ENV !== "production"`.
-
-## 5. Tell the user what the model actually said
-
-The sheet-analysis dialog shows the raw scale text beside the derived
-calibration, and warns that the derivation assumes a true-size plot. Surface
-the evidence, not just the conclusion — the estimator can only exercise
-judgement over something they can see.
-
-## 6. Test it without an API key
-
-There is no key in the dev environment. Unit-test the pure parts exhaustively;
-in E2E, mock the route with `page.route` and assert the review semantics —
-that pending output counts for nothing, that accepting flows into the
-estimate, that rejecting doesn't, and that it's all undoable. See
-`e2e/phase4-autocount.spec.ts` and `e2e/phase7-sheetai.spec.ts`.
-
-Then say plainly that live accuracy is unverified until run against a real
-plan set with a real key.
+Test pending/accept/reject/undo/save/reload with the actual worker path and
+mocked provider behavior where needed. Report real data or credentials that
+are unavailable without blocking independent local work.

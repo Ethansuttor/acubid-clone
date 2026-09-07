@@ -1,19 +1,29 @@
 "use client";
 
-// Workspace store: all project data, write-through persistence to Supabase
-// (autosave — every mutation is an immediate DB write), and an unlimited
-// undo/redo stack for takeoff edits.
+// Workspace store: all project data, write-through persistence to the active
+// local data client (autosave — every mutation is an immediate write), and an
+// unlimited undo/redo stack for takeoff edits.
 
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
+import { replaceLocalAssemblyItems } from "@/lib/localdb";
+import {
+  estimateTotals,
+  extendEstimate,
+  layerQuantities,
+  summarize,
+} from "@/lib/estimate";
+import { bidPreflight } from "@/lib/preflight";
 import type {
   Assembly,
   AssemblyItem,
+  BidSnapshot,
   Calibration,
   DirectCost,
   Item,
   Layer,
   PlanDocument,
+  ProposalEntry,
   Project,
   Sheet,
   Takeoff,
@@ -34,6 +44,7 @@ export type SaveState = "saved" | "saving" | "error";
 
 interface WorkspaceState {
   loaded: boolean;
+  loadError: string | null;
   userId: string | null;
   project: Project | null;
   documents: PlanDocument[];
@@ -44,6 +55,8 @@ interface WorkspaceState {
   assemblies: Assembly[];
   assemblyItems: AssemblyItem[];
   directCosts: DirectCost[];
+  proposalEntries: ProposalEntry[];
+  snapshots: BidSnapshot[];
 
   activeSheetId: string | null;
   activeLayerId: string | null;
@@ -53,6 +66,8 @@ interface WorkspaceState {
   redoStack: Op[];
   saveState: SaveState;
   pendingWrites: number;
+  failedWrites: number;
+  saveError: string | null;
 
   load(projectId: string): Promise<void>;
   setTool(tool: EditorTool): void;
@@ -81,13 +96,26 @@ interface WorkspaceState {
   setAssemblyItems(assemblyId: string, rows: AssemblyItem[]): void;
   upsertDirectCost(cost: DirectCost): void;
   deleteDirectCost(id: string): void;
+  upsertProposalEntry(entry: ProposalEntry): void;
+  deleteProposalEntry(id: string): void;
+  createBidSnapshot(label: string): Promise<{ snapshot: BidSnapshot | null; error: string | null }>;
 }
 
 // All persistence writes run through a single FIFO queue so that rapid
 // sequences (add takeoff -> undo -> redo) hit the database in order.
-// Supabase query builders execute lazily on await, so queueing the builder
-// (or a thunk) defers the actual HTTP request until its turn.
+// Persistence query builders execute lazily on await, so queueing the builder
+// (or a thunk) defers the actual operation until its turn.
 let writeQueue: Promise<unknown> = Promise.resolve();
+export function waitForWorkspaceWrites(): Promise<unknown> { return writeQueue; }
+let snapshotWriteInProgress = false;
+let loadGeneration = 0;
+
+function errorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error || "Unknown persistence error");
+}
 
 function track(
   set: (fn: (s: WorkspaceState) => Partial<WorkspaceState>) => void,
@@ -101,18 +129,31 @@ function track(
       ({ error }) => {
         if (error) console.error("save failed", error);
         set((s) => {
-          const pending = s.pendingWrites - 1;
+          const pending = Math.max(0, s.pendingWrites - 1);
+          const failedWrites = s.failedWrites + (error ? 1 : 0);
           return {
             pendingWrites: pending,
-            saveState: error ? "error" : pending > 0 ? "saving" : "saved",
+            failedWrites,
+            saveError: error ? errorMessage(error) : s.saveError,
+            saveState:
+              error || failedWrites > 0 ? "error" : pending > 0 ? "saving" : "saved",
           };
         });
       },
       (error) => {
         console.error("save failed", error);
-        set((s) => ({ pendingWrites: s.pendingWrites - 1, saveState: "error" }));
+        set((s) => ({
+          pendingWrites: Math.max(0, s.pendingWrites - 1),
+          failedWrites: s.failedWrites + 1,
+          saveError: errorMessage(error),
+          saveState: "error",
+        }));
       }
     );
+}
+
+function immutableCopy<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 // Exposed on window for E2E tests and console debugging.
@@ -160,6 +201,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
 
   return {
     loaded: false,
+    loadError: null,
     userId: null,
     project: null,
     documents: [],
@@ -170,6 +212,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     assemblies: [],
     assemblyItems: [],
     directCosts: [],
+    proposalEntries: [],
+    snapshots: [],
     activeSheetId: null,
     activeLayerId: null,
     tool: "select",
@@ -178,8 +222,14 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     redoStack: [],
     saveState: "saved",
     pendingWrites: 0,
+    failedWrites: 0,
+    saveError: null,
 
     async load(projectId) {
+      const generation = ++loadGeneration;
+      set(() => ({ loaded: false, loadError: null }));
+      await writeQueue;
+      if (generation !== loadGeneration) return;
       const db = supabase();
       const { data: auth } = await db.auth.getUser();
       const userId = auth.user?.id ?? null;
@@ -193,6 +243,8 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         assemblies,
         assemblyItems,
         directCosts,
+        proposalEntries,
+        snapshots,
       ] = await Promise.all([
           db.from("projects").select("*").eq("id", projectId).single(),
           db.from("documents").select("*").eq("project_id", projectId).order("created_at"),
@@ -202,31 +254,89 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
           db.from("items").select("*").order("code"),
           db.from("assemblies").select("*").order("code"),
           db.from("assembly_items").select("*"),
-          // Tolerate a project database that predates migration 0002.
+          db.from("direct_costs").select("*").eq("project_id", projectId).order("sort_order"),
+          db.from("proposal_entries").select("*").eq("project_id", projectId).order("sort_order"),
           db
-            .from("direct_costs")
+            .from("bid_snapshots")
             .select("*")
             .eq("project_id", projectId)
-            .order("sort_order")
-            .then((r) => (r.error ? { data: [] } : r)),
+            .order("revision", { ascending: false }),
         ]);
+
+      // React can start a second load before the first completes. Only the
+      // latest load may publish state, otherwise freshly edited catalog rows
+      // can be replaced by an older query result.
+      if (generation !== loadGeneration) return;
+      const requiredResults = [
+        ["project", project],
+        ["documents", documents],
+        ["sheets", sheets],
+        ["layers", layers],
+        ["takeoffs", takeoffs],
+        ["items", items],
+        ["assemblies", assemblies],
+        ["assembly components", assemblyItems],
+        ["direct costs", directCosts],
+        ["proposal entries", proposalEntries],
+        ["bid snapshots", snapshots],
+      ] as const;
+      const failures = requiredResults.filter(([, result]) => result.error);
+      if (failures.length > 0 || !project.data) {
+        const names = failures.map(([name]) => name);
+        set(() => ({
+          loaded: true,
+          loadError: names.length
+            ? `Could not load required project data: ${names.join(", ")}.`
+            : "The requested project does not exist on this device.",
+          project: null,
+          documents: [],
+          sheets: [],
+          layers: [],
+          takeoffs: [],
+          items: [],
+          assemblies: [],
+          assemblyItems: [],
+          directCosts: [],
+          proposalEntries: [],
+          snapshots: [],
+          activeSheetId: null,
+          activeLayerId: null,
+          selection: new Set(),
+          undoStack: [],
+          redoStack: [],
+        }));
+        return;
+      }
+
       set(() => ({
         loaded: true,
+        loadError: null,
         userId,
         project: (project.data as Project) ?? null,
         documents: (documents.data as PlanDocument[]) ?? [],
         sheets: (sheets.data as Sheet[]) ?? [],
-        layers: (layers.data as Layer[]) ?? [],
+        layers: ((layers.data as Layer[]) ?? []).map((layer) => ({
+          ...layer,
+          area: layer.area ?? "",
+          system: layer.system ?? "",
+          phase: layer.phase ?? "",
+        })),
         takeoffs: (takeoffs.data as Takeoff[]) ?? [],
         items: (items.data as Item[]) ?? [],
         assemblies: (assemblies.data as Assembly[]) ?? [],
         assemblyItems: (assemblyItems.data as AssemblyItem[]) ?? [],
         directCosts: (directCosts.data as DirectCost[]) ?? [],
+        proposalEntries: (proposalEntries.data as ProposalEntry[]) ?? [],
+        snapshots: (snapshots.data as BidSnapshot[]) ?? [],
         activeSheetId: (sheets.data?.[0] as Sheet | undefined)?.id ?? null,
         activeLayerId: (layers.data?.[0] as Layer | undefined)?.id ?? null,
         undoStack: [],
         redoStack: [],
         selection: new Set(),
+        saveState: "saved",
+        pendingWrites: 0,
+        failedWrites: 0,
+        saveError: null,
       }));
     },
 
@@ -360,18 +470,138 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       set((s) => ({ directCosts: s.directCosts.filter((c) => c.id !== id) }));
       track(set, supabase().from("direct_costs").delete().eq("id", id));
     },
+    upsertProposalEntry: (entry) => {
+      set((s) => {
+        const exists = s.proposalEntries.some((item) => item.id === entry.id);
+        return {
+          proposalEntries: exists
+            ? s.proposalEntries.map((item) => (item.id === entry.id ? entry : item))
+            : [...s.proposalEntries, entry],
+        };
+      });
+      track(set, supabase().from("proposal_entries").upsert(entry));
+    },
+    deleteProposalEntry: (id) => {
+      set((s) => ({ proposalEntries: s.proposalEntries.filter((item) => item.id !== id) }));
+      track(set, supabase().from("proposal_entries").delete().eq("id", id));
+    },
+
+    createBidSnapshot: async (label) => {
+      if (snapshotWriteInProgress) {
+        return { snapshot: null, error: "A bid snapshot is already being created." };
+      }
+      snapshotWriteInProgress = true;
+      try {
+        const state = get();
+        if (!state.project || !state.userId) {
+          return { snapshot: null, error: "The project is not loaded." };
+        }
+
+        const quantities = layerQuantities(state.layers, state.takeoffs, state.sheets);
+        const { lines, issues } = extendEstimate(
+          quantities,
+          state.items,
+          state.assemblies,
+          state.assemblyItems
+        );
+        const summary = summarize({
+          ...estimateTotals(lines),
+          laborRate: state.project.labor_rate,
+          wastePct: state.project.waste_pct,
+          taxPct: state.project.tax_pct,
+          laborFactorPct: state.project.labor_factor_pct,
+          overheadPct: state.project.overhead_pct,
+          profitPct: state.project.profit_pct,
+          laborBurdenPct: state.project.labor_burden_pct,
+          smallToolsPct: state.project.small_tools_pct,
+          contingencyPct: state.project.contingency_pct,
+          escalationPct: state.project.escalation_pct,
+          bondPct: state.project.bond_pct,
+          directCosts: state.directCosts,
+        });
+        const preflight = bidPreflight({
+          project: state.project,
+          sheets: state.sheets,
+          layers: state.layers,
+          takeoffs: state.takeoffs,
+          lines,
+          issues,
+          summary,
+          directCosts: state.directCosts,
+          pendingWrites: state.pendingWrites,
+          saveState: state.saveState,
+        });
+        if (!preflight.ready) {
+          return {
+            snapshot: null,
+            error: `Resolve ${preflight.blockers.length} bid-readiness ${preflight.blockers.length === 1 ? "blocker" : "blockers"} first.`,
+          };
+        }
+
+        const revision =
+          Math.max(0, ...state.snapshots.map((snapshot) => snapshot.revision)) + 1;
+        const snapshot: BidSnapshot = immutableCopy({
+          id: crypto.randomUUID(),
+          project_id: state.project.id,
+          user_id: state.userId,
+          revision,
+          label: label.trim() || `Bid revision ${revision}`,
+          created_at: new Date().toISOString(),
+          bid_price: summary.bidPrice,
+          material_total: summary.materialTotal,
+          labor_hours_total: summary.laborHoursTotal,
+          labor_cost: summary.laborCost,
+          warning_count: preflight.warnings.length,
+          payload: {
+            schema_version: 2,
+            project: state.project,
+            documents: state.documents,
+            sheets: state.sheets,
+            layers: state.layers,
+            takeoffs: state.takeoffs,
+            items: state.items,
+            assemblies: state.assemblies,
+            assembly_items: state.assemblyItems,
+            direct_costs: state.directCosts,
+            proposal_entries: state.proposalEntries,
+            summary: {
+              material_base: summary.materialBase,
+              material_total: summary.materialTotal,
+              labor_hours_base: summary.laborHoursBase,
+              labor_hours_total: summary.laborHoursTotal,
+              labor_cost: summary.laborCost,
+              prime_cost: summary.primeCost,
+              overhead: summary.overhead,
+              profit: summary.profit,
+              bid_price: summary.bidPrice,
+            },
+            preflight: preflight.checks,
+          },
+        });
+
+        const { error } = await supabase().from("bid_snapshots").insert(snapshot);
+        if (error) {
+          const message = errorMessage(error);
+          set((s) => ({
+            failedWrites: s.failedWrites + 1,
+            saveState: "error",
+            saveError: message,
+          }));
+          return { snapshot: null, error: message };
+        }
+        set((s) => ({ snapshots: [snapshot, ...s.snapshots] }));
+        return { snapshot, error: null };
+      } finally {
+        snapshotWriteInProgress = false;
+      }
+    },
 
     // (window hook attached below the store definition)
     setAssemblyItems: (assemblyId, rows) => {
       set((s) => ({
         assemblyItems: [...s.assemblyItems.filter((ai) => ai.assembly_id !== assemblyId), ...rows],
       }));
-      const db = supabase();
-      track(set, async () => {
-        const del = await db.from("assembly_items").delete().eq("assembly_id", assemblyId);
-        if (del.error) return del;
-        return rows.length ? await db.from("assembly_items").insert(rows) : { error: null };
-      });
+      track(set, () => replaceLocalAssemblyItems(assemblyId, rows));
     },
   };
 });

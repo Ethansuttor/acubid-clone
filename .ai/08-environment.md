@@ -1,78 +1,59 @@
-# Environment
+# Environment and runtime
 
-## Running it
+Updated September 7, 2026.
 
-```sh
-npm install
-cp .env.example .env.local   # then add ANTHROPIC_API_KEY
-npm run dev                  # http://localhost:3000
-```
+## Run the browser application
 
-```
-NEXT_PUBLIC_SUPABASE_URL=https://ulswnsdyxfrwvznyraqy.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_...      # public by design
-ANTHROPIC_API_KEY=sk-ant-...                          # server-side only
-ANTHROPIC_MODEL=claude-sonnet-4-6                     # optional override
-NEXT_PUBLIC_LOCAL_MODE=1                              # optional, dev only
-```
+Install the pinned dependency tree with npm ci when the lockfile matches the
+manifest; use npm install when intentionally updating dependencies. Run npm run
+dev and open http://localhost:3000. For a production browser build use npm run
+build followed by npm start. No desktop scripts exist in the reviewed baseline.
 
-`.env.local` is gitignored. `.env.example` holds the Supabase URL and
-publishable key (safe to commit — RLS is the access control) and a placeholder
-for the Anthropic key. **No real Anthropic key has ever been committed.**
+Optional development AI variables: ANTHROPIC_API_KEY and ANTHROPIC_MODEL in
+.env.local. Copy .env.example only if .env.local does not already exist.
+Do not overwrite an existing environment file or print its contents to a log.
+Local symbol search requires no key and sends no images.
 
-## Supabase
+The login username is 1 and the password is empty. This local access screen
+is not server authentication. Both AI endpoints reject production requests;
+setting an environment key does not bypass that guard.
 
-- Project **`volt-takeoff`**, ref `ulswnsdyxfrwvznyraqy`, region `us-east-1`,
-  org `Ethansuttor's Org`.
-- Both migrations are **applied and verified** against it. The columns
-  `waste_pct` / `tax_pct` / `labor_factor_pct` on `projects`,
-  `typical_multiplier` on `layers`, and the `direct_costs` table with its RLS
-  policy all exist. The app's exact insert shapes were tested against the live
-  database and accepted.
-- Sign-in user: `ethan.suttor@gmail.com`, temporary password
-  **`volt-takeoff-2026`** — the owner should change this.
-- Free-tier projects **auto-pause after inactivity**. If sign-in starts
-  failing, check the project status and restore it from the dashboard.
-- Outstanding advisory: leaked-password protection is disabled (a dashboard
-  toggle).
+## Local data
 
-For any other database, run `supabase/migrations/*.sql` in order.
-`0002_bid_math.sql` is required, not optional — the app writes its columns,
-so creating a project against a `0001`-only database fails outright.
+IndexedDB holds 11 logical tables, PDF blobs, and an append-only mutation
+journal. Authentication state and legacy migration inputs use localStorage.
+The app does not currently connect to Supabase or read its environment keys.
 
-## Local mode
+Browser storage belongs to an origin/profile. Changing host, port, or profile
+can make a different workspace appear. Use portable backup to migrate;
+Electron cannot automatically read Chrome's IndexedDB. Backup limits and the
+empty-target restore rule are in [00-START-HERE.md](00-START-HERE.md).
 
-`NEXT_PUBLIC_LOCAL_MODE=1` replaces the Supabase client with a
-localStorage-backed stand-in (`src/lib/localdb.ts`) implementing the narrow
-subset the app uses. Any email/password signs in. Used for offline dev and
-for E2E in sandboxes without Supabase egress.
+## Tooling
 
-It is development-only by construction: the API routes honour its auth bypass
-only when `NODE_ENV !== "production"`.
+Playwright configuration prefers PLAYWRIGHT_CHROMIUM_PATH, installed Chrome
+or Edge, then managed Chromium. It starts/reuses localhost:3000. Do not assume
+a Linux-only executable path or that an existing server belongs to your branch.
+Follow [parallel coordination](18-parallel-execution-plan.md) for separate
+checkouts, ports, and profiles.
 
-## Sandbox constraints (the Claude Code remote environment)
+If a dependency or browser binary is missing, install the needed compatible
+dependency within the task's authorization. Environment permissions or network
+restrictions vary by host; report actual failures instead of repeating old
+sandbox assumptions. Do not weaken verification to hide a missing runtime.
 
-These bit hard during development — know them before debugging:
+Use package.json/package-lock.json and installed package versions as current
+version evidence. Read Next.js guides in node_modules/next/dist/docs/ before
+framework changes.
 
-- **Egress to `supabase.co` is blocked** by the environment's network policy
-  (the proxy answers 403 to CONNECT). This is why local mode exists. Direct
-  `curl` to the Supabase REST endpoint will always fail here regardless of
-  project state; use the Supabase MCP connector to inspect the database.
-- **Playwright** must use the pre-installed browser:
-  `executablePath: "/opt/pw-browsers/chromium"`. Do not run
-  `playwright install`. The config also routes through `HTTPS_PROXY` with
-  `bypass: "localhost,127.0.0.1"`.
-- **`node_modules` can be pruned** between sessions. If `vitest: not found`,
-  run `npm install`.
-- Foreground `sleep` is blocked; use a backgrounded command.
+## Future backends
 
-## Stack versions
+Historical SQL migrations include 0001_schema.sql, 0002_bid_math.sql,
+0003_bid_math_gaps.sql, and 20260826142738_durable_bid_structure.sql.
+Their presence does not establish live-cloud schema state or authorization
+to apply them. Desktop SQLite uses explicit compatible migrations and a
+contract suite; cloud activation is separate follow-on work.
 
-Next 16 · React 19 · TypeScript 5.9 · Tailwind 4 · Zustand 5 ·
-pdfjs-dist 4.10 · ExcelJS 4.4 · `@anthropic-ai/sdk` · Vitest 4 · Playwright.
-
-## Repository
-
-`Ethansuttor/acubid-clone`, branch
-`claude/electrical-estimating-takeoff-mbpfi3`, tracked by **PR #1**.
-Push to that branch; it updates the PR.
+Inspect git status and the actual branch at task start. Do not assume every
+checkout is main or discard dirty changes. This documentation does not
+authorize publishing or changing external infrastructure.
