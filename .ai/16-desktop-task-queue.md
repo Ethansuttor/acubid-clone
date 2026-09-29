@@ -1,6 +1,6 @@
 # Task dispatch and ready-to-paste instructions
 
-Updated September 7, 2026. This replaces the old model-specific GD queue.
+Updated September 29, 2026. This replaces the old model-specific GD queue.
 Architecture, ownership, and waves live in
 [18-parallel-execution-plan.md](18-parallel-execution-plan.md).
 
@@ -83,20 +83,62 @@ and pending/accept/reject/undo quantities in both runtimes.
 The coordinator performs I1/I2 or assigns exclusive ownership for their
 duration. These are not safe parallel edits to shared components.
 
-## Initial queue status
+## Queue status (September 29, 2026)
 
-These statuses describe the planning handoff, not a running scheduler.
-No implementation agents have been launched by this documentation update.
+Integrated on branch `claude/magical-davinci-ge1nkv`. "Partial" means the
+handoff lists acceptance items that were not run; read it before continuing.
 
-| Task | Status | Next action |
+| Task | Status | Handoff | Next action |
+| --- | --- | --- | --- |
+| C0 | Done | this file, commit `136b942` | None; baseline recorded in [07](07-verification.md) |
+| C1 | Done | [C1](handoffs/C1.md) | Add `upsert` (and consider an editing lease) to `WorkspaceStoragePort` before I1; see the S1-S2 patch requests |
+| A1 | Done | [A1](handoffs/A1.md) | A2 needs one completed real job from the estimator |
+| S1/S2 | Partial | [S1-S2](handoffs/S1-S2.md) | Not done: S1 performance baseline, committed Electron proof script, export-under-concurrent-writes case. Then S3 |
+| D1/D2 | Partial | [D1-D2](handoffs/D1-D2.md) | Not run: PDF.js and detection workers under `voltline://app`, PDF+count+save+reopen, forced kill, second launch, crash notice, timeout, path with spaces, offline, close guard in Electron, anything on Windows |
+| V1 | Done (synthetic only) | [V1](handoffs/V1.md) | V2 needs authorized real drawings with estimator-checked labels; apply the V1 patch requests (shared render policy in `src/lib/autocount/`) |
+| I1 | Ready after the C1 port change | — | Wire the SQLite store behind the bridge in a utility process or worker thread (`node:sqlite` is synchronous) |
+| D3, S3, V3, A2 | Waiting | — | Follow the master wave table |
+
+## Product feature assignments (owner-approved September 29)
+
+Ideas 1 and 2 from the [September 29 brainstorm](20-strategy-and-priorities.md)
+and the catalog import wizard (P2) were approved. Idea 1 is integrated; the
+other two were not started and are ready to dispatch. Append one of these to
+the worker preamble; each is independent of tracks D, S and V, uses no schema
+change, and must run its browser tests with its own `E2E_PORT`.
+
+| Task | Status | Handoff |
 | --- | --- | --- |
-| C0 | Ready | Inspect current tree and establish baseline |
-| C1 | Waiting for C0 | Publish contracts and fake adapters |
-| A1 | Ready after C0 | Prepare comparison protocol/harness |
-| V1 | Ready after C0 | Inventory and reproduce local evaluation |
-| D1/D2 | Waiting for C1 | Bundle server and build shell |
-| S1/S2 | Waiting for C1 | Contract suite and storage engine |
-| Remaining tasks | Waiting for dependencies | Follow master wave table |
+| QA-1: takeoff quality checks in preflight | Done: duplicate counts and calibrated-but-empty sheets, as warnings | [QA-diff](handoffs/QA-diff.md) (includes estimator questions on thresholds) |
+| QA-2: revision diff | Ready | — |
+| P2-import: catalog import wizard | Ready (a started parser refactor was discarded) | — |
+
+**QA-2, revision diff.** A pure `src/lib/revisionDiff.ts` comparing two bid
+states: frozen `BidSnapshot` payloads (schema versions 1 and 2) or the live
+estimate assembled into the same shape by a pure helper (do not change
+`src/store/**`). Report setting changes, per-layer quantity and extension
+changes, catalog price and assembly changes that affect the bid, direct-cost
+and proposal changes, and old/new totals. Include a bid-price walk that applies
+change groups in a fixed, documented order, recomputing with the shared
+`estimate.ts` functions after each step, so the steps sum exactly to the total
+change; state in the UI that attribution depends on the order because markups
+compound. Add a read-only "Compare revisions" control in `SummaryView.tsx`
+(default: last revision vs current). Hand-calculated tests, deep-frozen inputs,
+and an E2E spec.
+
+**P2-import, catalog import wizard.** A pure `src/lib/catalogImport.ts` plus a
+dialog in the Database view. Suggest a column mapping from header synonyms for
+the user to confirm. Convert per-C (100) and per-M (1000) material and labor
+values, taking the divisor from a mapped column or a file-wide choice; unknown
+per-codes are row errors. Every row must end up as added, updated, unchanged,
+blank or error, with counts that reconcile. Blank price or labor cells get a
+visible warning rather than silently becoming zero. Show a diff against the
+existing catalog with warnings for unit changes and for price or labor ratios
+outside a named band, plus how many layers and assemblies each updated item
+feeds. Apply nothing until the user confirms, then write exactly the previewed
+rows. Keep the existing strict import buttons and their test ids. Use
+hand-worked tests (for example "$450.00 per M = $0.45/ft") and an E2E spec.
+Do not claim compatibility with any proprietary format.
 
 Full release gates are in the master plan. A worker saying "done" is not a
 substitute for the coordinator testing the integrated installer.

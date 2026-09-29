@@ -1,6 +1,6 @@
 # Start here
 
-Updated September 7, 2026.
+Updated September 29, 2026.
 
 ## Product and next milestone
 
@@ -19,7 +19,11 @@ explicit when changing them.
 
 ## Current implementation
 
-- Next.js 16 / React 19 / TypeScript. No desktop implementation in the reviewed baseline.
+- Next.js 16 / React 19 / TypeScript, Node 24 (`.nvmrc`).
+- Desktop preview (D1/D2, partial): `npm run desktop:build` stages a Next.js
+  standalone payload that Electron 44 serves at the stable origin
+  `voltline://app`; sandboxed renderer, versioned bridge whose storage, AI and
+  credential operations answer `unavailable` for now. Linux-verified only.
 - Single-user local access: username 1, empty password; this is not server authentication.
 - IndexedDB stores records and PDF blobs, with an atomic mutation journal.
   Legacy localStorage data migrates on first open. The active client does not
@@ -41,15 +45,24 @@ explicit when changing them.
 - Local symbol search runs in a browser worker; candidates stay pending until
   reviewed. Optional AI reviews bounded crops or proposes sheet metadata.
   Both AI API routes reject all requests in production.
-- Cloud sync, desktop SQLite, installers, real-plan detection acceptance,
-  and real-estimate replacement acceptance remain open.
+- A SQLite workspace store (`desktop/storage/`, built-in `node:sqlite`)
+  passes the shared storage contract and crash/lock tests but is not wired
+  into the app (step I1).
+- Preflight warns (never blocks) on possible duplicate counts and on
+  calibrated sheets with no takeoffs.
+- `npm run eval:detection` reproduces the synthetic detection evaluation from
+  tracked inputs; generated `eval-out/` is no longer tracked.
+- Cloud sync, SQLite wiring, installers, Windows testing, real-plan detection
+  acceptance, and real-estimate replacement acceptance remain open.
 
 ## Evidence
 
-The September 7 code review in this task ran 433 unit tests across 25 files,
-typecheck, lint, production build, and estimate benchmark successfully.
-It did not rerun browser E2E or validate a real job. Code may have changed
-since that run: check the current tree and [verification ledger](07-verification.md).
+On September 29 the integrated tree (`a84256e`, Linux, Node 24.21.0) passed
+871 unit tests across 45 files, typecheck, lint, production build, 19 of 19
+browser E2E tests, and 3 of 3 Electron launch tests. No real job, Windows
+install, or real drawing was validated. Code may have changed since that run:
+check the current tree and [verification ledger](07-verification.md).
+Current task status is in [the queue](16-desktop-task-queue.md).
 
 Prior synthetic detection evidence is in [13-image-detection.md](13-image-detection.md).
 Do not convert synthetic/mock results into a claim about real drawings.

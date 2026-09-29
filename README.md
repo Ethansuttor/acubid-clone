@@ -10,7 +10,12 @@ single-user, local-only build.
 
 ## Windows implementation and parallel AI work
 
-The Windows version is planned; this repo currently runs as a browser app.
+The browser app is the working product. A desktop preview exists: Electron
+runs the bundled Next.js server at a stable `voltline://app` origin
+(`npm run desktop:build`, then `npm run desktop:start`). It still keeps data in
+the renderer's IndexedDB; the SQLite store in `desktop/storage/` is tested but
+not yet wired in, AI is off in the desktop build, and nothing has been
+packaged or tested on Windows yet. See [the environment notes](.ai/08-environment.md).
 Start with [the parallel execution plan](.ai/18-parallel-execution-plan.md).
 It defines separate desktop, storage/recovery, detection, and real-estimate
 validation tracks, with shared interfaces, file ownership, and release gates.
@@ -18,14 +23,15 @@ validation tracks, with shared interfaces, file ownership, and release gates.
 Use [the coordinator and worker prompts](.ai/16-desktop-task-queue.md) to assign
 work to Codex or another AI. Each worker needs an isolated checkout from the
 same reviewed source baseline; the current dirty tree is not automatically
-included in new worktrees. The first desktop build will bundle Next.js
-standalone inside Electron, with SQLite integrated after contract tests.
+included in new worktrees. Worker handoffs are in [.ai/handoffs](.ai/handoffs).
 
 The acceptance target is [a known completed bid](.ai/19-real-estimate-acceptance.md)
 reproduced, reopened, migrated, restored, and exported from the installed app.
 See [the docs index](.ai/README.md) for current context and deferred research.
 
 ## Run locally
+
+Use Node 24 (see `.nvmrc`); one storage test needs its Web Locks.
 
 ```sh
 npm install
@@ -113,9 +119,11 @@ Local mode sends no images. Optional AI review sends at most 48 ambiguous crops
 in four requests, keeps candidates available if the API fails, and never approves
 quantities. Visual match scores are similarity scores, not accuracy probabilities.
 
-`npm run eval:local` checks the four saved synthetic raster fixtures and exits
-nonzero on missed or extra symbols. Real-plan accuracy remains unverified; see
-[detection verification](.ai/13-image-detection.md) for evidence and limitations.
+`npm run eval:detection` renders the tracked synthetic plans, runs the
+production matcher offline, scores hits one-to-one against versioned manifests
+in `evaluation/`, and exits nonzero on missed or extra symbols. Real-plan
+accuracy remains unverified; see [evaluation/README.md](evaluation/README.md)
+and [detection verification](.ai/13-image-detection.md).
 
 ## Bid math
 
@@ -157,8 +165,11 @@ npm test             # unit tests; dated results in .ai/07-verification.md
 npm run typecheck    # TypeScript
 npm run lint         # ESLint
 npm run bench        # deterministic 10,000-takeoff engine benchmark
-npm run test:e2e     # browser workflows
+npm run test:e2e     # browser workflows (E2E_PORT selects the dev-server port)
 npm run build        # production Next.js build
+npm run eval:detection  # offline synthetic detection evaluation (~7 min)
+npm run eval:manifests  # evaluation manifests are current
+npm run test:desktop    # Electron launch tests (after npm run desktop:build; not as root)
 ```
 
 The small fixture in `tests/fixtures/fixture-project.ts` is hand-calculated

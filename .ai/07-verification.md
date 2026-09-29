@@ -1,6 +1,6 @@
 # Verification and evidence ledger
 
-Updated September 7, 2026. Report exactly what ran against which source tree.
+Updated September 29, 2026. Report exactly what ran against which source tree.
 A documentation-only edit needs link/consistency/diff checks, not a fresh
 application build merely to update prose.
 
@@ -11,12 +11,17 @@ npm test
 npm run typecheck
 npm run lint
 npm run bench
-npm run test:e2e
+npm run test:e2e          # E2E_PORT selects the dev-server port
 npm run build
-npm run eval:local
+npm run eval:detection    # offline synthetic detection evaluation
+npm run eval:manifests    # evaluation manifests are current
+npm run eval:local        # legacy; regenerates rasters with Python
+npm run acceptance        # A1 harness, synthetic fixture
+npm run desktop:build     # standalone payload staged into out/
+npm run test:desktop      # Electron launch tests; not as root
 ```
 
-Desktop, storage benchmark, real-estimate, and docs:check npm commands are
+A storage benchmark, real-estimate comparison, and docs:check command are
 planned, not currently available. Document them after implementing them.
 
 ## Evidence as observed
@@ -30,7 +35,14 @@ planned, not currently available. Document them after implementing them.
 | September 7, prior detection work | Synthetic detector and browser workflow | See 13-image-detection.md for its recorded results and limits |
 | September 29, strategy review at `9f929a0` (clean tree) | npm test / typecheck / lint / build | 542 tests passed across 33 files; typecheck, lint, build clean |
 | September 29, strategy review at `9f929a0` | npx playwright test | 17 of 17 passed in 58 s; Windows 11, local Chrome, port 3000 checked free |
-| Current review | Installed desktop, physical power loss, real-job acceptance, live provider accuracy | Not verified |
+| September 29, integration at `a84256e` (Linux container, 4 cores, Node 24.21.0, quiet machine) | npx vitest run | 871 tests passed across 45 files |
+| September 29, integration at `a84256e` | typecheck, lint, build | All exit 0; browser build output mode unchanged (no standalone) |
+| September 29, integration at `a84256e` | npx playwright test | 19 of 19 passed in 2.5 min; Linux Chromium /opt/pw-browsers, port 3000 |
+| September 29, integration at `a84256e` | npm run desktop:build; test:desktop | Staged 314 MB payload; 3 of 3 Electron launch tests passed as a non-root user under Xvfb with the OS sandbox active. Linux only; most D2 lifecycle cases not run |
+| September 29, integration at `a84256e` | npm run eval:manifests | Both manifests up to date |
+| September 29, under concurrent agent load | tests/autocount-ncc.test.ts 10 s smoke ceiling | Fails at 11–18 s when the suite shares the CPU with other jobs; passes alone and on a quiet machine. A wall-clock assertion in the unit suite |
+| September 29, worker runs | Track handoffs | See handoffs/S1-S2.md, D1-D2.md, V1.md, QA-diff.md for per-track commands and results |
+| Current review | Installed desktop, Windows, physical power loss, real-job acceptance, live provider accuracy, real-plan detection | Not verified |
 
 The reviewed working tree had uncommitted changes and no immutable checkpoint
 for this run. These results do not certify later edits by concurrent agents.

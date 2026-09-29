@@ -50,9 +50,16 @@ tolerance, AI request limits, invalid AI decisions and cancellation.
 - The rendered Projects page and detector review screenshot were inspected;
   the Projects page had no captured browser errors.
 
-`npm run eval:local` reads the saved synthetic raster fixtures and writes
+`npm run eval:local` reads synthetic raster fixtures and writes
 `eval-out/local-detection-results.json`. It now exits nonzero if any fixture
 has missed or extra symbols, while preserving the report for diagnosis.
+
+Update, September 29: `eval-out/` is no longer tracked. `npm run eval:local`
+now regenerates its rasters with Python (`scripts/requirements-eval.txt`), and
+the current reproducible harness is `npm run eval:detection` with versioned
+manifests in `evaluation/` (see [the V1 handoff](handoffs/V1.md)). Its
+September 29 run reproduced 90/90 on this sample plan plus 9/9 on the E2E plan,
+with no extras and no API calls, on synthetic fixtures only.
 
 Final evaluation: **90/90 symbols, zero false positives, zero false negatives,
 zero API calls** at the default 0.72 threshold.

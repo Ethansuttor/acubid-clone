@@ -1,6 +1,6 @@
 # AI documentation index
 
-Updated September 7, 2026.
+Updated September 29, 2026.
 
 Start with [00-START-HERE.md](00-START-HERE.md). For implementation use
 [18-parallel-execution-plan.md](18-parallel-execution-plan.md) and
@@ -37,6 +37,8 @@ control scope; docs describe requirements, current evidence, and proposed work.
 | [13-image-detection.md](13-image-detection.md) | Implemented detector fixes and dated synthetic evidence |
 | [15-proposed-skills.md](15-proposed-skills.md) | Index of existing repository skills |
 | [20-strategy-and-priorities.md](20-strategy-and-priorities.md) | September 29 review, revenue paths, new features and prioritized tasks (proposal) |
+| [handoffs/](handoffs/) | Per-task worker reports: what was built, what ran, what was not verified |
+| [../evaluation/README.md](../evaluation/README.md) | Detection evaluation manifests, scoring rule and synthetic baseline |
 
 ## Deferred research
 
@@ -55,5 +57,5 @@ behavior, investigate whether the code or docs need correction rather than
 assuming the code is automatically right.
 
 During parallel implementation only the coordinator edits shared status docs;
-workers use individual handoffs. No worker has been dispatched by this
-documentation update.
+workers use individual handoffs. Current task status is in the queue table of
+[16-desktop-task-queue.md](16-desktop-task-queue.md).
