@@ -1,0 +1,539 @@
+{
+  "summaryFormat": "voltline-detection-eval-summary",
+  "version": 1,
+  "scope": [
+    "SYNTHETIC FIXTURES ONLY. These generated drawings have exact labels; the results establish nothing about detection accuracy on real plans. Release gate G6 (real-plan precision/recall) remains UNVERIFIED."
+  ],
+  "environment": {
+    "timestamp": "2026-09-29T19:48:04.058Z",
+    "git": {
+      "commit": "b0489bfcacde285d7b1eaba27d740af9a265b363",
+      "dirty": false,
+      "dirtyPaths": []
+    },
+    "node": "v24.21.0",
+    "platform": "linux",
+    "arch": "x64",
+    "osRelease": "6.18.44-fc-v37",
+    "cpuModel": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "logicalCpus": 4,
+    "totalMemoryGiB": 15.7,
+    "loadAverage1m": [
+      1.75,
+      1.87
+    ],
+    "renderer": {
+      "name": "pdfjs-dist+@napi-rs/canvas",
+      "pdfjsVersion": "4.10.38",
+      "canvasVersion": "0.1.100",
+      "standardFonts": "pdfjs-dist/standard_fonts"
+    },
+    "timingCaveat": "Single run per case on this machine; other work may share the CPU (see loadAverage1m, sampled at start and end). Timings are indicative, not a benchmark."
+  },
+  "manifests": [
+    {
+      "id": "synthetic-e2e-plan",
+      "path": "evaluation/manifests/synthetic-e2e-plan.v1.json",
+      "sha256": "bfa64a47995a972265611ed371bc1628c8a5169f43f0711dad1c53218a46269c",
+      "passed": true,
+      "exitCode": 0,
+      "selection": {
+        "manifestCases": 2,
+        "casesRun": 2,
+        "partial": false
+      },
+      "totals": {
+        "note": "Context only. Gates are applied to each case separately; a total never passes a failing case. Cases without a score contribute nothing here, so check byStatus.",
+        "cases": 2,
+        "byStatus": {
+          "completed": 2
+        },
+        "expected": 9,
+        "truePositives": 9,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "negativeHits": 0,
+        "apiCalls": 0
+      },
+      "cases": [
+        {
+          "id": "p1-receptacle",
+          "status": "completed",
+          "input": {
+            "key": "e2e-plan",
+            "fixtureId": "voltline-synthetic-e2e-sample-plan",
+            "redistributable": true,
+            "location": "e2e/fixtures/sample-plan.pdf",
+            "sha256": "3c1c849af606d58150660fbdeb79426f1c344c5180ef633f98bfd039547be2ea"
+          },
+          "page": 1,
+          "symbolClass": "receptacle",
+          "split": {
+            "project": "synthetic-e2e-plan",
+            "source": "scripts/make-sample-plan.mjs",
+            "set": "regression"
+          },
+          "options": {
+            "minScore": 0.72,
+            "scaleTolerance": false,
+            "assist": false,
+            "existingMarks": 0,
+            "renderScale": "symbol-search",
+            "radiusScale": 1
+          },
+          "expected": 6,
+          "truePositives": 6,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "negativeHits": 0,
+          "precision": 1,
+          "recall": 1,
+          "countError": 0,
+          "apiCalls": 0,
+          "render": {
+            "scale": 2.5714285714285716,
+            "canvasWidth": 1573,
+            "canvasHeight": 2036,
+            "pageWidth": 612,
+            "pageHeight": 792,
+            "rotation": 0,
+            "rasterSha256": "2764c421144de0e3a547790e98ca0ca1fcd5633477debcdc73aceb3d78831aee"
+          },
+          "template": {
+            "width": 87,
+            "height": 87,
+            "sha256": "f084c148a89cbb78f61ef0fca5fda6273f0700d2a04346998a3f653238e620f6"
+          },
+          "detection": {
+            "tiles": 4,
+            "skippedUniformTiles": 0,
+            "duplicatesSuppressed": 0,
+            "candidates": 6,
+            "wouldReviewCrops": 0,
+            "requests": 0,
+            "sentCrops": 0,
+            "payloadBytes": 0,
+            "workersStarted": 1,
+            "workersTerminated": 1,
+            "tileTimings": {
+              "count": 4,
+              "totalMs": 10672,
+              "p50Ms": 2658,
+              "p95Ms": 2755,
+              "maxMs": 2755
+            }
+          },
+          "detectionsSha256": "c679ea254d5e5454e80bd0700a46cfe0db313b0a9de76ff8edd1b830f9bd3eba",
+          "timingsMs": {
+            "render": 53,
+            "detect": 10838,
+            "total": 11787
+          },
+          "gateViolations": []
+        },
+        {
+          "id": "p2-receptacle",
+          "status": "completed",
+          "input": {
+            "key": "e2e-plan",
+            "fixtureId": "voltline-synthetic-e2e-sample-plan",
+            "redistributable": true,
+            "location": "e2e/fixtures/sample-plan.pdf",
+            "sha256": "3c1c849af606d58150660fbdeb79426f1c344c5180ef633f98bfd039547be2ea"
+          },
+          "page": 2,
+          "symbolClass": "receptacle",
+          "split": {
+            "project": "synthetic-e2e-plan",
+            "source": "scripts/make-sample-plan.mjs",
+            "set": "regression"
+          },
+          "options": {
+            "minScore": 0.72,
+            "scaleTolerance": false,
+            "assist": false,
+            "existingMarks": 0,
+            "renderScale": "symbol-search",
+            "radiusScale": 1
+          },
+          "expected": 3,
+          "truePositives": 3,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "negativeHits": 0,
+          "precision": 1,
+          "recall": 1,
+          "countError": 0,
+          "apiCalls": 0,
+          "render": {
+            "scale": 2.5714285714285716,
+            "canvasWidth": 1573,
+            "canvasHeight": 2036,
+            "pageWidth": 612,
+            "pageHeight": 792,
+            "rotation": 0,
+            "rasterSha256": "31dadcaf1820397989baf7d7298d6e3c9a2e48e074dd6e724cf51e7f10010eb6"
+          },
+          "template": {
+            "width": 87,
+            "height": 87,
+            "sha256": "f0d2226d683991d1cb1d7af5d872e95aa58ab1c1cf758cc6146165dd9e4b1446"
+          },
+          "detection": {
+            "tiles": 4,
+            "skippedUniformTiles": 0,
+            "duplicatesSuppressed": 0,
+            "candidates": 3,
+            "wouldReviewCrops": 0,
+            "requests": 0,
+            "sentCrops": 0,
+            "payloadBytes": 0,
+            "workersStarted": 1,
+            "workersTerminated": 1,
+            "tileTimings": {
+              "count": 4,
+              "totalMs": 9442,
+              "p50Ms": 2137,
+              "p95Ms": 2773,
+              "maxMs": 2773
+            }
+          },
+          "detectionsSha256": "0c18e2e0ebabeb2477ed64f7da34ff79990708a9ea67760ae997606b68f3b0e7",
+          "timingsMs": {
+            "render": 32,
+            "detect": 9587,
+            "total": 9814
+          },
+          "gateViolations": []
+        }
+      ]
+    },
+    {
+      "id": "synthetic-sample-plan",
+      "path": "evaluation/manifests/synthetic-sample-plan.v1.json",
+      "sha256": "e4207a63e34ef2fcdf4427a7a47ea3e90331642b4571cb7d56009953f0685367",
+      "passed": true,
+      "exitCode": 0,
+      "selection": {
+        "manifestCases": 4,
+        "casesRun": 4,
+        "partial": false
+      },
+      "totals": {
+        "note": "Context only. Gates are applied to each case separately; a total never passes a failing case. Cases without a score contribute nothing here, so check byStatus.",
+        "cases": 4,
+        "byStatus": {
+          "completed": 4
+        },
+        "expected": 90,
+        "truePositives": 90,
+        "falsePositives": 0,
+        "falseNegatives": 0,
+        "negativeHits": 0,
+        "apiCalls": 0
+      },
+      "cases": [
+        {
+          "id": "E-102-troffer",
+          "status": "completed",
+          "input": {
+            "key": "sample-plan",
+            "fixtureId": "voltline-synthetic-sample-plan-e101-e102",
+            "redistributable": true,
+            "location": "test-assets/sample-plan-E101-E102.pdf",
+            "sha256": "558e8063fc01992839cf225ad2be776eb2917015dbeb504378efee4534778a3f"
+          },
+          "page": 2,
+          "symbolClass": "troffer",
+          "split": {
+            "project": "synthetic-sample-plan",
+            "source": "scripts/make_sample_plan.py",
+            "set": "regression"
+          },
+          "options": {
+            "minScore": 0.72,
+            "scaleTolerance": false,
+            "assist": false,
+            "existingMarks": 0,
+            "renderScale": "symbol-search",
+            "radiusScale": 1
+          },
+          "expected": 50,
+          "truePositives": 50,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "negativeHits": 0,
+          "precision": 1,
+          "recall": 1,
+          "countError": 0,
+          "apiCalls": 0,
+          "render": {
+            "scale": 1.5,
+            "canvasWidth": 3888,
+            "canvasHeight": 2592,
+            "pageWidth": 2592,
+            "pageHeight": 1728,
+            "rotation": 0,
+            "rasterSha256": "361da653a46bcc156e4e27900f37847ffce2e40054ccf76eb7518b781fa8f677"
+          },
+          "template": {
+            "width": 130,
+            "height": 76,
+            "sha256": "f2f52687d75b73219806ef252173085b92d83060424fb0b47a5fc7bdf5512ff7"
+          },
+          "detection": {
+            "tiles": 12,
+            "skippedUniformTiles": 0,
+            "duplicatesSuppressed": 0,
+            "candidates": 50,
+            "wouldReviewCrops": 1,
+            "requests": 0,
+            "sentCrops": 0,
+            "payloadBytes": 0,
+            "workersStarted": 1,
+            "workersTerminated": 1,
+            "tileTimings": {
+              "count": 12,
+              "totalMs": 93999,
+              "p50Ms": 7810,
+              "p95Ms": 10028,
+              "maxMs": 10028
+            }
+          },
+          "detectionsSha256": "4eab6732fb4eb1d236590244b04dc894c3f3ab8a9e9cf4d6634ff263037fab5f",
+          "timingsMs": {
+            "render": 47,
+            "detect": 94150,
+            "total": 94689
+          },
+          "gateViolations": []
+        },
+        {
+          "id": "E-101-duplex",
+          "status": "completed",
+          "input": {
+            "key": "sample-plan",
+            "fixtureId": "voltline-synthetic-sample-plan-e101-e102",
+            "redistributable": true,
+            "location": "test-assets/sample-plan-E101-E102.pdf",
+            "sha256": "558e8063fc01992839cf225ad2be776eb2917015dbeb504378efee4534778a3f"
+          },
+          "page": 1,
+          "symbolClass": "duplex",
+          "split": {
+            "project": "synthetic-sample-plan",
+            "source": "scripts/make_sample_plan.py",
+            "set": "regression"
+          },
+          "options": {
+            "minScore": 0.72,
+            "scaleTolerance": false,
+            "assist": false,
+            "existingMarks": 0,
+            "renderScale": "symbol-search",
+            "radiusScale": 1
+          },
+          "expected": 27,
+          "truePositives": 27,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "negativeHits": 0,
+          "precision": 1,
+          "recall": 1,
+          "countError": 0,
+          "apiCalls": 0,
+          "render": {
+            "scale": 2.672917912914934,
+            "canvasWidth": 6928,
+            "canvasHeight": 4618,
+            "pageWidth": 2592,
+            "pageHeight": 1728,
+            "rotation": 0,
+            "rasterSha256": "401caa0197df93561bab17c993769724d06d5380f364946460a3938ddc75bebb"
+          },
+          "template": {
+            "width": 50,
+            "height": 71,
+            "sha256": "119e5a471dc34775fdae2c7d949bd9cb16fab871086156f99b653b86d84de797"
+          },
+          "detection": {
+            "tiles": 28,
+            "skippedUniformTiles": 0,
+            "duplicatesSuppressed": 0,
+            "candidates": 27,
+            "wouldReviewCrops": 0,
+            "requests": 0,
+            "sentCrops": 0,
+            "payloadBytes": 0,
+            "workersStarted": 1,
+            "workersTerminated": 1,
+            "tileTimings": {
+              "count": 28,
+              "totalMs": 83543,
+              "p50Ms": 2776,
+              "p95Ms": 4993,
+              "maxMs": 5838
+            }
+          },
+          "detectionsSha256": "3fc617c0e873d7ec4c67ca680709436d4ef203487f5819b9d94fac715f718cca",
+          "timingsMs": {
+            "render": 185,
+            "detect": 83691,
+            "total": 84965
+          },
+          "gateViolations": []
+        },
+        {
+          "id": "E-102-switch",
+          "status": "completed",
+          "input": {
+            "key": "sample-plan",
+            "fixtureId": "voltline-synthetic-sample-plan-e101-e102",
+            "redistributable": true,
+            "location": "test-assets/sample-plan-E101-E102.pdf",
+            "sha256": "558e8063fc01992839cf225ad2be776eb2917015dbeb504378efee4534778a3f"
+          },
+          "page": 2,
+          "symbolClass": "switch",
+          "split": {
+            "project": "synthetic-sample-plan",
+            "source": "scripts/make_sample_plan.py",
+            "set": "regression"
+          },
+          "options": {
+            "minScore": 0.72,
+            "scaleTolerance": false,
+            "assist": false,
+            "existingMarks": 0,
+            "renderScale": "symbol-search",
+            "radiusScale": 1
+          },
+          "expected": 9,
+          "truePositives": 9,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "negativeHits": 0,
+          "precision": 1,
+          "recall": 1,
+          "countError": 0,
+          "apiCalls": 0,
+          "render": {
+            "scale": 2.672917912914934,
+            "canvasWidth": 6928,
+            "canvasHeight": 4618,
+            "pageWidth": 2592,
+            "pageHeight": 1728,
+            "rotation": 0,
+            "rasterSha256": "c42eb322fa8cb6b7e1cbe9597284896e1dce21ac4bdaaf5a518c0172d2fab6f2"
+          },
+          "template": {
+            "width": 52,
+            "height": 52,
+            "sha256": "716f50c0eac7afcb9282df8b46212ddf1b9e85940b9cdf24dffe16399aac7d68"
+          },
+          "detection": {
+            "tiles": 28,
+            "skippedUniformTiles": 0,
+            "duplicatesSuppressed": 0,
+            "candidates": 9,
+            "wouldReviewCrops": 0,
+            "requests": 0,
+            "sentCrops": 0,
+            "payloadBytes": 0,
+            "workersStarted": 1,
+            "workersTerminated": 1,
+            "tileTimings": {
+              "count": 28,
+              "totalMs": 89399,
+              "p50Ms": 2994,
+              "p95Ms": 4521,
+              "maxMs": 5020
+            }
+          },
+          "detectionsSha256": "08f8d4ec6bf14b2d5ffd280217523871ae550c1a11653f0e961489e6a5ae7ff5",
+          "timingsMs": {
+            "render": 99,
+            "detect": 89581,
+            "total": 92155
+          },
+          "gateViolations": []
+        },
+        {
+          "id": "E-102-exit",
+          "status": "completed",
+          "input": {
+            "key": "sample-plan",
+            "fixtureId": "voltline-synthetic-sample-plan-e101-e102",
+            "redistributable": true,
+            "location": "test-assets/sample-plan-E101-E102.pdf",
+            "sha256": "558e8063fc01992839cf225ad2be776eb2917015dbeb504378efee4534778a3f"
+          },
+          "page": 2,
+          "symbolClass": "exit",
+          "split": {
+            "project": "synthetic-sample-plan",
+            "source": "scripts/make_sample_plan.py",
+            "set": "regression"
+          },
+          "options": {
+            "minScore": 0.72,
+            "scaleTolerance": false,
+            "assist": false,
+            "existingMarks": 0,
+            "renderScale": "symbol-search",
+            "radiusScale": 1
+          },
+          "expected": 4,
+          "truePositives": 4,
+          "falsePositives": 0,
+          "falseNegatives": 0,
+          "negativeHits": 0,
+          "precision": 1,
+          "recall": 1,
+          "countError": 0,
+          "apiCalls": 0,
+          "render": {
+            "scale": 2.672917912914934,
+            "canvasWidth": 6928,
+            "canvasHeight": 4618,
+            "pageWidth": 2592,
+            "pageHeight": 1728,
+            "rotation": 0,
+            "rasterSha256": "c42eb322fa8cb6b7e1cbe9597284896e1dce21ac4bdaaf5a518c0172d2fab6f2"
+          },
+          "template": {
+            "width": 77,
+            "height": 45,
+            "sha256": "475ed812867e8efdc7a8e8b7e1e87fe4da461e76ed196352165ba7927f9ee730"
+          },
+          "detection": {
+            "tiles": 35,
+            "skippedUniformTiles": 0,
+            "duplicatesSuppressed": 0,
+            "candidates": 4,
+            "wouldReviewCrops": 0,
+            "requests": 0,
+            "sentCrops": 0,
+            "payloadBytes": 0,
+            "workersStarted": 1,
+            "workersTerminated": 1,
+            "tileTimings": {
+              "count": 35,
+              "totalMs": 118492,
+              "p50Ms": 3349,
+              "p95Ms": 4987,
+              "maxMs": 5034
+            }
+          },
+          "detectionsSha256": "0a0ef55074569e51107904f0b9293756e3548b103581640fea836a07aa0d50aa",
+          "timingsMs": {
+            "render": 90,
+            "detect": 118622,
+            "total": 119431
+          },
+          "gateViolations": []
+        }
+      ]
+    }
+  ]
+}

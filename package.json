@@ -13,6 +13,8 @@
     "test:desktop": "playwright test -c playwright.desktop.config.ts",
     "bench": "tsx scripts/benchmark-estimate.ts",
     "eval:local": "tsx scripts/eval-local-detection.ts",
+    "eval:detection": "tsx scripts/eval/run.ts",
+    "eval:manifests": "tsx scripts/eval/make-synthetic-manifests.ts --check",
     "acceptance": "tsx scripts/acceptance/compare-estimate.ts",
     "desktop:build": "node scripts/desktop/build.mjs",
     "desktop:stage": "node scripts/desktop/build.mjs --skip-next-build",

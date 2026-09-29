@@ -1,8 +1,15 @@
 #!/usr/bin/env npx tsx
-// Offline evaluation harness for AI auto-count accuracy.
+// LEGACY offline evaluation harness (GA-era). Not the product's detector path:
+// it matches with ncc.ts matchAll() on Python-rendered tiles and then asks a
+// verifier. The product uses local.ts via pipeline.ts; evaluate that with
+// `npm run eval:detection` (scripts/eval/run.ts).
 // Supports two strategies:
-// 1. "ncc-verify" (GA-6 / GA-7): 2-stage deterministic NCC template matcher + ClaudeVerifier
-// 2. "tile-scan" (GA-2 / GA-3 baseline): whole-tile scanning via ClaudeDetector
+// 1. "ncc-verify" (GA-6 / GA-7): 2-stage deterministic NCC template matcher + verifier
+// 2. "tile-scan" (GA-2 / GA-3 baseline): retired whole-tile LLM scanning
+// Provider behavior is MOCKED unless --live is passed explicitly: the mock
+// verifier approves every candidate scoring >= 0.45 and the mock tile scanner
+// finds nothing, so mocked metrics say nothing about a model. --live needs
+// ANTHROPIC_API_KEY and makes paid requests; never run it without authorization.
 
 import * as fs from "fs";
 import * as path from "path";
@@ -11,8 +18,12 @@ import { ClaudeDetector } from "../src/lib/autocount/claude";
 import { ClaudeVerifier, blendConfidence } from "../src/lib/autocount/verify";
 import { matchAll, type GrayImage } from "../src/lib/autocount/ncc";
 import { dedupeDetections } from "../src/lib/autocount/dedupe";
-import { mapDetectionsToSheet, detectionCenter } from "../src/lib/autocount/mapping";
+import { mapDetectionsToSheet } from "../src/lib/autocount/mapping";
+import { evaluateMatches } from "./eval/scoring";
 import type { Detection, SymbolDetector, SymbolVerifier } from "../src/lib/autocount/types";
+
+// One-to-one matching now lives in scripts/eval/scoring.ts; re-exported for existing callers.
+export { evaluateMatches };
 
 interface ManifestTile {
   index: number;
@@ -110,6 +121,7 @@ function parseArgs() {
       }
     } else if (a === "--sweep") opts.sweep = true;
     else if (a === "--mock") opts.mock = true;
+    else if (a === "--live") opts.live = true;
   }
   return opts;
 }
@@ -126,64 +138,6 @@ function loadGrayImageFromBin(binPath: string, w: number, h: number): GrayImage 
     g[i] = buf[i];
   }
   return { g, w, h };
-}
-
-export function evaluateMatches(
-  detections: Detection[],
-  groundTruths: TruthSymbol[]
-): {
-  truePositives: number;
-  falsePositives: number;
-  falseNegatives: number;
-  precision: number;
-  recall: number;
-  f1: number;
-} {
-  const candidates: { detIdx: number; truthIdx: number; dist: number }[] = [];
-
-  for (let d = 0; d < detections.length; d++) {
-    const det = detections[d];
-    const detCenter = detectionCenter(det);
-
-    for (let t = 0; t < groundTruths.length; t++) {
-      const truth = groundTruths[t];
-      const dist = Math.hypot(detCenter.x - truth.x, detCenter.y - truth.y);
-      const halfDiagonal = 0.5 * Math.hypot(truth.w, truth.h);
-
-      if (dist <= halfDiagonal) {
-        candidates.push({ detIdx: d, truthIdx: t, dist });
-      }
-    }
-  }
-
-  candidates.sort((a, b) => a.dist - b.dist);
-
-  const matchedDets = new Set<number>();
-  const matchedTruths = new Set<number>();
-
-  for (const c of candidates) {
-    if (!matchedDets.has(c.detIdx) && !matchedTruths.has(c.truthIdx)) {
-      matchedDets.add(c.detIdx);
-      matchedTruths.add(c.truthIdx);
-    }
-  }
-
-  const tp = matchedTruths.size;
-  const fp = detections.length - matchedDets.size;
-  const fn = groundTruths.length - matchedTruths.size;
-
-  const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
-  const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
-  const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
-
-  return {
-    truePositives: tp,
-    falsePositives: fp,
-    falseNegatives: fn,
-    precision,
-    recall,
-    f1,
-  };
 }
 
 function runNCCPass(manifest: Manifest, manifestDir: string, minScore: number): Detection[] {
@@ -321,8 +275,15 @@ async function run() {
   const targetTruthSymbols = targetSheet.symbols.filter((s) => s.kind === manifest.symbol);
   const manifestDir = path.dirname(manifestPath);
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const isMock = Boolean(opts.mock) || (!apiKey && process.env.NODE_ENV !== "production");
+  // Live provider calls require an explicit --live flag. An API key merely
+  // present in the environment no longer turns a local run into paid requests.
+  const live = Boolean(opts.live) && !opts.mock;
+  const apiKey = live ? process.env.ANTHROPIC_API_KEY : undefined;
+  if (live && !apiKey) {
+    console.error("--live requires ANTHROPIC_API_KEY; refusing to fall back to a mock silently.");
+    process.exit(1);
+  }
+  const isMock = !live;
 
   const modelName = String(opts.model ?? process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6");
   const verifyModelName = String(opts.verifyModel ?? modelName);
@@ -336,7 +297,8 @@ async function run() {
   console.log(`Active Tiles: ${manifest.tiles.length}`);
   console.log(`Strategy: ${strategy}`);
   console.log(`Model: ${strategy === "ncc-verify" ? verifyModelName : modelName}`);
-  if (isMock) console.log(`[NOTE] Running in MOCK mode (no ANTHROPIC_API_KEY set or --mock passed)`);
+  if (isMock) console.log(`[NOTE] MOCK provider: verifier approves candidates scoring >= 0.45; tile-scan finds nothing. Pass --live for a real (paid) provider run.`);
+  else console.log(`[WARNING] LIVE provider requests enabled by --live; these are paid API calls.`);
 
   if (opts.sweep) {
     console.log(`\n--- Running Parameter Sweep (minScore: 0.4, 0.5, 0.6, 0.7) ---`);
