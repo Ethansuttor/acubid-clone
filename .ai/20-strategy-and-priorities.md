@@ -123,3 +123,40 @@ counts.
 
 Defer cloud team editing, natural-language queries and change orders until
 paying users ask for them.
+
+## Status of the P0 items (September 29, later session)
+
+- Generated output: `eval-out/` (829 files, 442 MB) and `scripts/__pycache__`
+  are no longer tracked and are ignored. They remain in history.
+- Web app manifest and icons from `claude/markdown-files-review-ad60sv` are
+  ported, with the theme colour moved to the app's current light ground.
+- Supabase exposure: on September 29 the project `volt-takeoff` still reported
+  ACTIVE_HEALTHY. The owner chose to leave it as it is for now. The credential
+  in public history therefore remains usable until the password is rotated or
+  the project is paused or deleted.
+- The dead remote branches were not deleted.
+
+## Additional ideas (September 29 brainstorm, not yet prioritized)
+
+Owner-approved for implementation: 1 and 2. Everything else is a proposal.
+Items that produce money or quantity follow [04-invariants.md](04-invariants.md).
+
+| # | Idea | Gap it closes | Notes |
+| --- | --- | --- | --- |
+| 1 | Takeoff quality checks in preflight: possible duplicate counts, calibrated sheets with no takeoffs, calibration that matches no printed scale on the sheet | Preflight only checks "no sheets" | Warnings, never blockers; pure logic; no schema change |
+| 2 | Revision diff with an exact bid-price walk (live vs last issued, or any two revisions) | No way to explain why the number moved between revisions or addenda | Read-only over frozen payloads; attribution depends on step order because markups compound |
+| 3 | Scope-risk phrase scan of the PDF text layer ("NIC", "BY OTHERS", "EXISTING TO REMAIN", "FUTURE", "ALTERNATE", "DEMO") with sheet citations | Cheap, local first step toward S-101/S-102 | Review list only |
+| 4 | Addendum sheet compare: pixel diff of old and reissued pages; takeoffs inside changed regions flagged for re-check | S-103; missed addendum changes lose money | Local rendering, no AI |
+| 5 | Quote status on direct costs (plug vs firm, supplier, expected date); preflight warns on plugs at issue | Plug numbers go out as if firm | One new field |
+| 6 | Count by text tags ("A1", "WP", "GFI") from the vector text layer | Image matching is slow and unverified on real plans | Candidates stay pending |
+| 7 | Lighting fixture schedule reader: one layer/item per fixture type | Manual re-typing of schedules | Vector PDFs first |
+| 8 | Copy takeoffs between similar floors with alignment | Floors that are almost, not exactly, typical | Alternative to the multiplier |
+| 9 | Markup sensitivity table (profit, labor rate, etc.) | Bid-day "cut 2%" decisions | Read-only |
+| 10 | Change log from the save journal | "Why did the number move since yesterday?" | Journal exists in IndexedDB; SQLite has an outbox |
+| 11 | $/SF and hours/SF benchmarks across past bids by building type | Sanity check on a new bid | Needs project SF and type fields |
+| 12 | Catalog consistency lint (e.g. a 1" EMT labor unit below the 3/4" one) | Mistyped labor units | Review-only, never changes a number |
+| 13 | Reusable exclusions and clarifications library | Proposal consistency | |
+| 14 | Estimating-as-a-service kit: branded takeoff/estimate report per client, time per bid | Revenue path 2 | |
+
+Needs estimator policy first: per-area labor condition factors (today one
+project-wide percentage) and priced alternates (B-301).

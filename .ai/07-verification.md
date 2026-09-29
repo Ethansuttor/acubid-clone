@@ -50,9 +50,11 @@ Test counts in old documents are historical, not required totals.
   packaged Electron flow, backup/upgrade/crash checks, and
   [real-estimate acceptance](19-real-estimate-acceptance.md).
 
-Run builds and E2E only in the assigned checkout. The current Playwright config
-uses localhost:3000 and reuses an existing server. Until configurable per-worker
-ports land, serialize E2E. Do not mistake another worker's server for this build.
+Run builds and E2E only in the assigned checkout. Playwright defaults to
+localhost:3000 and reuses a server already listening there. For parallel
+checkouts set `E2E_PORT` per checkout (for example `E2E_PORT=3210 npx playwright
+test`); with an explicit port an existing server is not reused unless
+`E2E_REUSE_SERVER=1`. Do not mistake another worker's server for this build.
 Use disposable browser profiles and desktop data directories for destructive tests.
 
 For every new evidence record include date, task ID, commit plus dirty-diff
