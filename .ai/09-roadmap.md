@@ -2,6 +2,8 @@
 
 Updated September 7, 2026. Execution source:
 [18-parallel-execution-plan.md](18-parallel-execution-plan.md).
+Revenue paths and a proposed priority order across this backlog:
+[20-strategy-and-priorities.md](20-strategy-and-priorities.md).
 
 ## Next release: dependable personal Windows estimating
 

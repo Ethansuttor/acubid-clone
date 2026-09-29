@@ -36,6 +36,7 @@ control scope; docs describe requirements, current evidence, and proposed work.
 | [12-local-product-review.md](12-local-product-review.md) | September 6 recovery/workflow review record |
 | [13-image-detection.md](13-image-detection.md) | Implemented detector fixes and dated synthetic evidence |
 | [15-proposed-skills.md](15-proposed-skills.md) | Index of existing repository skills |
+| [20-strategy-and-priorities.md](20-strategy-and-priorities.md) | September 29 review, revenue paths, new features and prioritized tasks (proposal) |
 
 ## Deferred research
 

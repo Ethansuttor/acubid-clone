@@ -28,6 +28,8 @@ planned, not currently available. Document them after implementing them.
 | September 7, this task's code review | npm run bench | Invariants passed; 10,000-takeoff pipeline median 14.47 ms, p95 41.87 ms, i7-12700H / Node 24.14.1 |
 | September 7, this task's code review | Browser E2E | Not rerun in that review |
 | September 7, prior detection work | Synthetic detector and browser workflow | See 13-image-detection.md for its recorded results and limits |
+| September 29, strategy review at `9f929a0` (clean tree) | npm test / typecheck / lint / build | 542 tests passed across 33 files; typecheck, lint, build clean |
+| September 29, strategy review at `9f929a0` | npx playwright test | 17 of 17 passed in 58 s; Windows 11, local Chrome, port 3000 checked free |
 | Current review | Installed desktop, physical power loss, real-job acceptance, live provider accuracy | Not verified |
 
 The reviewed working tree had uncommitted changes and no immutable checkpoint
