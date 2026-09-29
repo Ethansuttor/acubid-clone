@@ -65,9 +65,10 @@ duplicate IDs and contradictory labels are errors, not guesses.
   Pages with a `/Rotate` entry are rejected rather than converted.
 - Every label must sit on drawn content inside the page (checked against the
   rendered raster) so a wrong coordinate convention fails loudly.
-- **Real-plan cases** must use `evidenceClass: "real"`, estimator-verified labels
-  and a project-level split; the synthetic generator's label provenance is
-  rejected for them.
+- **Real-plan cases** use `evidenceClass: "real"` and private inputs. The
+  validator rejects the synthetic-generator label provenance for them; it does
+  not check that labels were estimator-verified or that the split is by project,
+  so those remain the author's responsibility and a real report says so.
 
 ## Scoring rule
 
