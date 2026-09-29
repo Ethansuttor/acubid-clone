@@ -8,6 +8,9 @@ const config = [
       ".next/**",
       "node_modules/**",
       ".agents/**",
+      // Isolated agent checkouts: each is linted from its own root.
+      ".claude/worktrees/**",
+      "eval-out/**",
       "test-results/**",
       "playwright-report/**",
     ],
