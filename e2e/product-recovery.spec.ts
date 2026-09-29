@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { signIn, waitSaved, createBidSnapshot, expectRevision } from "./helpers";
 
-test("archive and portable recovery preserve a bid, revision and plan PDF", async ({ page, browser }, testInfo) => {
+test("archive and portable recovery preserve a bid, revision and plan PDF", async ({ page, browser, baseURL }, testInfo) => {
   await signIn(page);
   await page.getByLabel("Project name", { exact: true }).fill("Recovery acceptance bid");
   await page.getByRole("button", { name: "Create project", exact: true }).click();
@@ -39,9 +39,11 @@ test("archive and portable recovery preserve a bid, revision and plan PDF", asyn
   await expect(page.getByRole("status")).toContainText("Restore requires an empty workspace");
   await expect(page.getByRole("button", { name: "Open Recovery acceptance bid", exact: true })).toBeVisible();
 
-  const recoveredContext = await browser.newContext();
+  // A fresh context is a fresh browser profile (empty IndexedDB). It does not
+  // inherit the configured baseURL, so pass it: the port varies with E2E_PORT.
+  const recoveredContext = await browser.newContext({ baseURL });
   const recovered = await recoveredContext.newPage();
-  await recovered.goto("http://localhost:3000/login");
+  await recovered.goto("/login");
   await recovered.getByRole("button", { name: "Open workspace", exact: true }).click();
   await recovered.getByLabel("Backup file", { exact: true }).setInputFiles(backupPath);
   await expect(recovered.getByRole("heading", { name: "Ready to restore" })).toBeVisible();
