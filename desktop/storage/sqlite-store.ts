@@ -67,9 +67,9 @@ import {
   INSERT_ORDER,
   isDomainTable,
   MIGRATIONS,
-  SCHEMA_VERSION,
   TABLE_SPECS,
   type DomainTable,
+  type Migration,
 } from "./schema";
 
 export const DATABASE_FILE = "voltline.db";
@@ -114,6 +114,12 @@ export interface SqliteStoreOptions {
   /** How long a write waits for another process's transaction. */
   readonly busyTimeoutMs?: number;
   readonly hooks?: SqliteStoreHooks;
+  /**
+   * Test seam: the ordered migration list. Production callers omit it and get
+   * the shipped `MIGRATIONS`. Tests pass a longer list to prove that an
+   * upgrade preserves data and that a failing upgrade rolls back whole.
+   */
+  readonly migrations?: readonly Migration[];
 }
 
 export interface EditingLease {
@@ -257,19 +263,20 @@ function configure(db: DatabaseSync, busyTimeoutMs: number): void {
   db.enableDefensive(true);
 }
 
-function migrate(db: DatabaseSync): void {
+function migrate(db: DatabaseSync, migrations: readonly Migration[]): void {
+  const target = migrations[migrations.length - 1].version;
   const applicationId = Number(pragmaValue(db, "application_id"));
   const version = Number(pragmaValue(db, "user_version"));
   if (applicationId !== 0 && applicationId !== APPLICATION_ID) {
     throw new StoreError("integrity", "This file is not a Voltline workspace.");
   }
-  if (version > SCHEMA_VERSION) {
+  if (version > target) {
     throw new StoreError(
       "unavailable",
       "This workspace was saved by a newer version of Voltline. Update Voltline to open it. Nothing was changed."
     );
   }
-  if (version === SCHEMA_VERSION) {
+  if (version === target) {
     if (applicationId !== APPLICATION_ID) throw new StoreError("integrity", "This file is not a Voltline workspace.");
     return;
   }
@@ -282,7 +289,7 @@ function migrate(db: DatabaseSync): void {
   try {
     // Another process may have migrated while this one waited for the lock.
     const current = Number(pragmaValue(db, "user_version"));
-    for (const migration of MIGRATIONS) {
+    for (const migration of migrations) {
       if (migration.version <= current) continue;
       db.exec(migration.sql);
       db.exec(`PRAGMA user_version = ${migration.version}`);
@@ -359,7 +366,8 @@ export class SqliteWorkspaceStore implements WorkspaceStoragePort {
     private readonly lockFile: WorkspaceLockFile,
     dataDir: string,
     private readonly busyTimeoutMs: number,
-    private readonly hooks: SqliteStoreHooks | undefined
+    private readonly hooks: SqliteStoreHooks | undefined,
+    private readonly schemaVersion: number
   ) {
     this.dataDir = dataDir;
   }
@@ -371,6 +379,7 @@ export class SqliteWorkspaceStore implements WorkspaceStoragePort {
       return fail("invalid-input", "The workspace location must be an absolute, app-managed folder.");
     }
     const busyTimeoutMs = options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS;
+    const migrations = options.migrations ?? MIGRATIONS;
     let db: DatabaseSync | null = null;
     try {
       mkdirSync(dataDir, { recursive: true });
@@ -381,10 +390,20 @@ export class SqliteWorkspaceStore implements WorkspaceStoragePort {
         enableForeignKeyConstraints: true,
       });
       configure(db, busyTimeoutMs);
-      migrate(db);
+      migrate(db, migrations);
       verifySchema(db);
       const lockFile = new WorkspaceLockFile(path.join(dataDir, LOCK_FILE));
-      return ok(new SqliteWorkspaceStore(db, files, lockFile, dataDir, busyTimeoutMs, options.hooks));
+      return ok(
+        new SqliteWorkspaceStore(
+          db,
+          files,
+          lockFile,
+          dataDir,
+          busyTimeoutMs,
+          options.hooks,
+          migrations[migrations.length - 1].version
+        )
+      );
     } catch (error) {
       try {
         db?.close();
@@ -1143,7 +1162,7 @@ export class SqliteWorkspaceStore implements WorkspaceStoragePort {
           const orphans = copy.prepare("PRAGMA foreign_key_check").all().length;
           userVersion = Number(pragmaValue(copy, "user_version"));
           const applicationId = Number(pragmaValue(copy, "application_id"));
-          if (integrity.join() !== "ok" || orphans !== 0 || applicationId !== APPLICATION_ID || userVersion !== SCHEMA_VERSION) {
+          if (integrity.join() !== "ok" || orphans !== 0 || applicationId !== APPLICATION_ID || userVersion !== this.schemaVersion) {
             throw new StoreError("integrity", "The database backup failed verification. No backup was published.");
           }
         } finally {

@@ -21,5 +21,12 @@ export {
   type SqliteStoreHooks,
   type SqliteStoreOptions,
 } from "./sqlite-store";
-export { APPLICATION_ID, DOMAIN_TABLES, MIGRATIONS, SCHEMA_VERSION, TABLE_SPECS } from "./schema";
+export {
+  APPLICATION_ID,
+  DOMAIN_TABLES,
+  MIGRATIONS,
+  SCHEMA_VERSION,
+  TABLE_SPECS,
+  type Migration,
+} from "./schema";
 export { StorageValidationError } from "./codec";
