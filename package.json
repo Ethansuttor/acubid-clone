@@ -10,9 +10,13 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:desktop": "playwright test -c playwright.desktop.config.ts",
     "bench": "tsx scripts/benchmark-estimate.ts",
     "eval:local": "tsx scripts/eval-local-detection.ts",
-    "acceptance": "tsx scripts/acceptance/compare-estimate.ts"
+    "acceptance": "tsx scripts/acceptance/compare-estimate.ts",
+    "desktop:build": "node scripts/desktop/build.mjs",
+    "desktop:stage": "node scripts/desktop/build.mjs --skip-next-build",
+    "desktop:start": "node scripts/desktop/run.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.111.0",
@@ -35,6 +39,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "electron": "44.4.5",
+    "esbuild": "0.28.2",
     "eslint": "^9.39.5",
     "fake-indexeddb": "^6.2.5",
     "pdf-lib": "^1.17.1",
