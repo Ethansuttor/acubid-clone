@@ -10,13 +10,22 @@ const knownChromiumPaths = [
 
 const executablePath = knownChromiumPaths.find(existsSync);
 
+// Parallel checkouts each need their own dev server. E2E_PORT selects it; with
+// an explicit port an already-running server is NOT reused (it may belong to
+// another checkout) unless E2E_REUSE_SERVER=1. Without E2E_PORT the historical
+// behaviour stands: port 3000, reusing a server you started yourself.
+const port = Number(process.env.E2E_PORT ?? 3000);
+const reuseExistingServer = process.env.E2E_REUSE_SERVER
+  ? process.env.E2E_REUSE_SERVER === "1"
+  : process.env.E2E_PORT === undefined;
+
 export default defineConfig({
   testDir: "e2e",
   timeout: 120_000,
   retries: 0,
   workers: 1,
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${port}`,
     viewport: { width: 1440, height: 900 },
     // Some CI environments route optional external services through an HTTPS
     // proxy. Local app traffic bypasses it.
@@ -31,9 +40,9 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "npx next dev -p 3000",
-    url: "http://localhost:3000/login",
-    reuseExistingServer: true,
+    command: `npx next dev -p ${port}`,
+    url: `http://localhost:${port}/login`,
+    reuseExistingServer,
     timeout: 120_000,
   },
 });
