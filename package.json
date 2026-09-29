@@ -12,6 +12,8 @@
     "test:e2e": "playwright test",
     "bench": "tsx scripts/benchmark-estimate.ts",
     "eval:local": "tsx scripts/eval-local-detection.ts",
+    "eval:detection": "tsx scripts/eval/run.ts",
+    "eval:manifests": "tsx scripts/eval/make-synthetic-manifests.ts --check",
     "acceptance": "tsx scripts/acceptance/compare-estimate.ts"
   },
   "dependencies": {

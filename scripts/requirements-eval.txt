@@ -1,0 +1,13 @@
+# Python packages for the legacy raster evaluation scripts
+# (scripts/render_eval_tiles.py, scripts/crop_patch.py; used by
+# `npm run eval:local`, scripts/run_all_evals.ts and the tiling-parity test
+# tests/autocount-eval-tiling.test.ts). Versions are the ones verified on
+# 2026-09-29 with Python 3.11.
+#   python -m pip install -r scripts/requirements-eval.txt
+#
+# The application-faithful evaluation (`npm run eval:detection`) needs no
+# Python: it renders with pdfjs-dist and @napi-rs/canvas from package-lock.json.
+# scripts/make_sample_plan.py (regenerating the tracked test-assets PDF) also
+# needs reportlab, which is not pinned here because that path was not re-run.
+pypdfium2==5.13.0
+Pillow==12.3.0
