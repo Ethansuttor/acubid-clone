@@ -37,6 +37,13 @@ a Linux-only executable path or that an existing server belongs to your branch.
 Follow [parallel coordination](18-parallel-execution-plan.md) for separate
 checkouts, ports, and profiles.
 
+Unit tests need Node 24 (`.nvmrc`): the live IndexedDB storage-contract
+test uses Node's own Web Locks, which Node 22 lacks, and it fails there with
+`unavailable` rather than skipping. The Python tiling-parity test imports
+scripts/render_eval_tiles.py, which needs `pypdfium2` and `Pillow`.
+`eval-out/` is generated evaluation output and is not tracked; regenerate it
+with the evaluation scripts before running `npm run eval:local`.
+
 If a dependency or browser binary is missing, install the needed compatible
 dependency within the task's authorization. Environment permissions or network
 restrictions vary by host; report actual failures instead of repeating old
