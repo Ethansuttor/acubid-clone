@@ -17,8 +17,10 @@ precision/recall) stays unverified until estimator-verified labels exist.
 
 Output goes to `eval-out/detection-eval/<manifest id>/` (git-ignored): `report.json`,
 `report.md`, and diagnostic PNGs (template, false-positive and false-negative
-crops). A full synthetic run takes several minutes on a 4-core machine; timings
-are single runs and indicative only.
+crops). The recorded full synthetic run took 6 min 53 s on a shared 4-core
+machine (sample-plan cases 85-119 s each, E2E-plan cases about 10 s each);
+timings are single runs and indicative only. Its compact summary is committed
+as `evaluation/results/synthetic-baseline.json` (`--summary-out` writes one).
 
 Exit status: `0` all gates met; `1` a gate was violated (including a failed,
 timed-out or zero-match case); `2` a manifest or input is missing, invalid, has
