@@ -438,7 +438,8 @@ button { color: inherit; }
 .workspace-project { display: flex; min-width: 120px; max-width: 260px; align-items: center; gap: 8px; font-size: 13px; }
 .workspace-tabs { display: flex; align-items: center; gap: 2px; margin-left: 12px; }
 
-.save-indicator { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--color-fg-dim); font-size: 11px; white-space: nowrap; }
+/* Never shrinks: save failures must stay visible. The project name gives way instead. */
+.save-indicator { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; color: var(--color-fg-dim); font-size: 11px; white-space: nowrap; }
 .save-indicator.saving { color: #b54708; }
 .save-indicator.error { color: var(--color-danger); }
 .save-indicator.idle .status-dot { color: var(--color-ok); }
@@ -498,8 +499,10 @@ button { color: inherit; }
 * { scrollbar-width: thin; scrollbar-color: #c5ccd6 transparent; }
 
 @media (max-width: 1000px) {
-  .workspace-project { max-width: 140px; }
-  .workspace-tabs { margin-left: 2px; }
+  /* Font metrics vary by platform (Segoe UI is absent off Windows), so the
+     header must fit by shrinking rather than by fixed widths. */
+  .workspace-project { min-width: 0; max-width: 140px; }
+  .workspace-tabs { min-width: 0; overflow-x: auto; margin-left: 2px; }
   .workspace-tabs .tab { padding: 0 6px; font-size: 12px; }
   .save-indicator { font-size: 10.5px; }
 }

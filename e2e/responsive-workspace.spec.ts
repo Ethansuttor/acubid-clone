@@ -9,7 +9,11 @@ const VIEWPORTS = [
 
 test("summary and catalog remain usable without page-level horizontal overflow", async ({ page }) => {
   await signIn(page);
-  await page.getByLabel("Project name", { exact: true }).fill(`Responsive ${Date.now()}`);
+  // A realistic long job name: the header must truncate it rather than push
+  // the save indicator off screen.
+  await page
+    .getByLabel("Project name", { exact: true })
+    .fill(`Responsive ${Date.now()} Main Street Medical Office Renovation Phase 2`);
   await page.getByRole("button", { name: "Create project" }).click();
   await page.waitForURL("**/project/**");
   await page.getByRole("button", { name: "summary" }).click();
@@ -25,6 +29,11 @@ test("summary and catalog remain usable without page-level horizontal overflow",
         document.documentElement.scrollWidth - document.documentElement.clientWidth
       );
       expect(overflow).toBeLessThanOrEqual(1);
+
+      // Save state must stay fully visible at every width.
+      const indicator = await page.locator(".save-indicator").boundingBox();
+      expect(indicator).not.toBeNull();
+      expect(indicator!.x + indicator!.width).toBeLessThanOrEqual(viewport.width);
     });
   }
 
