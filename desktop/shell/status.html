@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voltline</title>
+    <link rel="stylesheet" href="status.css" />
+    <script src="status.js" defer></script>
+  </head>
+  <body>
+    <main class="card" data-kind="starting">
+      <div class="mark" aria-hidden="true">⚡</div>
+      <div>
+        <h1 id="title" data-testid="shell-title">Starting Voltline…</h1>
+        <p id="message" data-testid="shell-message" role="status" aria-live="polite"></p>
+        <pre id="detail" data-testid="shell-detail" hidden></pre>
+        <div id="actions" class="actions"></div>
+      </div>
+    </main>
+  </body>
+</html>
