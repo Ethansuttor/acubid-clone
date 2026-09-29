@@ -691,7 +691,7 @@ describe("bidPreflight - Warning Rules", () => {
   });
 });
 
-describe("bidPreflight - Master Table-Driven 15-Rule Matrix", () => {
+describe("bidPreflight - Master Table-Driven 17-Rule Matrix", () => {
   interface RuleMatrixRow {
     ruleNumber: number;
     id: string;
@@ -864,6 +864,25 @@ describe("bidPreflight - Master Table-Driven 15-Rule Matrix", () => {
         i.project.overhead_pct = 0;
       },
     },
+    {
+      ruleNumber: 16,
+      id: "duplicate-counts",
+      severity: "warning",
+      title: "Possible duplicate counts",
+      mutate: (i) => {
+        // The same receptacle count twice on one spot of the calibrated sheet.
+        i.takeoffs.push({ ...i.takeoffs[0], id: "dup-count" });
+      },
+    },
+    {
+      ruleNumber: 17,
+      id: "empty-calibrated-sheets",
+      severity: "warning",
+      title: "Calibrated sheets have no takeoffs",
+      mutate: (i) => {
+        i.sheets.push({ ...i.sheets[0], id: "sheet-empty", name: "E-102" });
+      },
+    },
   ];
 
   it.each(ruleMatrix)(
@@ -889,6 +908,119 @@ describe("bidPreflight - Master Table-Driven 15-Rule Matrix", () => {
       }
     }
   );
+});
+
+describe("bidPreflight - Takeoff quality warnings", () => {
+  describe("Rule: duplicate-counts", () => {
+    it("names the sheet and layer and never blocks the bid", () => {
+      const input = createReadyInput();
+      input.takeoffs.push({ ...input.takeoffs[0], id: "dup-count" });
+      const result = bidPreflight(input);
+      expect(result.ready).toBe(true);
+      expect(result.blockers).toEqual([]);
+      const check = result.warnings.find((c) => c.id === "duplicate-counts");
+      expect(check?.severity).toBe("warning");
+      expect(check?.detail).toContain("E-101, layer Receptacles");
+      expect(check?.detail).toContain("up to 1 count is extra");
+    });
+
+    it("reports a cluster once, not once per point", () => {
+      const input = createReadyInput();
+      // Three more counts stacked on the first receptacle: one cluster of 4.
+      for (const id of ["d1", "d2", "d3"]) input.takeoffs.push({ ...input.takeoffs[0], id });
+      const result = bidPreflight(input);
+      expect(result.warnings.filter((c) => c.id === "duplicate-counts")).toHaveLength(1);
+      expect(result.warnings.find((c) => c.id === "duplicate-counts")?.detail).toContain(
+        "4 counts in 1 spot"
+      );
+    });
+
+    it("ignores duplicates that are still pending or were rejected", () => {
+      const input = createReadyInput();
+      input.takeoffs.push({ ...input.takeoffs[0], id: "p1", status: "pending", source: "ai" });
+      input.takeoffs.push({ ...input.takeoffs[0], id: "r1", status: "rejected", source: "ai" });
+      const result = bidPreflight(input);
+      expect(result.warnings.map((c) => c.id)).not.toContain("duplicate-counts");
+      // The pending candidate still blocks, exactly as before.
+      expect(result.blockers.map((c) => c.id)).toEqual(["pending-ai"]);
+    });
+
+    it("does not flag different layers at one point", () => {
+      const input = createReadyInput();
+      input.takeoffs.push({ ...input.takeoffs[0], id: "other-layer", layer_id: "l-led" });
+      expect(bidPreflight(input).warnings.map((c) => c.id)).not.toContain("duplicate-counts");
+    });
+
+    it("says a typical layer multiplies the duplicate", () => {
+      const input = createReadyInput();
+      input.layers = input.layers.map((l) =>
+        l.id === "l-rec" ? { ...l, typical_multiplier: 3 } : l
+      );
+      input.takeoffs.push({ ...input.takeoffs[0], id: "dup-count" });
+      const detail = bidPreflight(input).warnings.find((c) => c.id === "duplicate-counts")?.detail;
+      expect(detail).toContain("typical x3");
+      expect(detail).toContain("adds 3 to the bid quantity");
+    });
+  });
+
+  describe("Rule: empty-calibrated-sheets", () => {
+    it("warns for a calibrated sheet with no takeoffs and never blocks the bid", () => {
+      const input = createReadyInput();
+      input.sheets.push({ ...input.sheets[0], id: "sheet-empty", name: "E-102" });
+      const result = bidPreflight(input);
+      expect(result.ready).toBe(true);
+      const check = result.warnings.find((c) => c.id === "empty-calibrated-sheets");
+      expect(check?.detail).toContain("E-102 is calibrated but has no confirmed takeoff");
+      expect(check?.detail).not.toContain("E-101");
+    });
+
+    it("does not warn for an uncalibrated sheet: covers, legends and schedules", () => {
+      const input = createReadyInput();
+      input.sheets.push({
+        ...input.sheets[0],
+        id: "sheet-cover",
+        name: "G-001 cover",
+        scale_ft_per_unit: null,
+        calibration: null,
+      });
+      const result = bidPreflight(input);
+      expect(result.warnings).toEqual([]);
+      expect(result.checks).toEqual([]);
+    });
+
+    it("does not warn while a sheet only has pending candidates", () => {
+      const input = createReadyInput();
+      input.sheets.push({ ...input.sheets[0], id: "sheet-ai", name: "E-103" });
+      input.takeoffs.push({
+        ...input.takeoffs[0],
+        id: "ai-1",
+        sheet_id: "sheet-ai",
+        status: "pending",
+        source: "ai",
+      });
+      expect(bidPreflight(input).warnings.map((c) => c.id)).not.toContain("empty-calibrated-sheets");
+    });
+  });
+
+  it("keeps the checks partitioned when the takeoff warnings sit beside a blocker", () => {
+    const input = createReadyInput();
+    input.saveState = "error";
+    input.takeoffs.push({ ...input.takeoffs[0], id: "dup-count" });
+    input.sheets.push({ ...input.sheets[0], id: "sheet-empty", name: "E-102" });
+    const result = bidPreflight(input);
+    expect(result.ready).toBe(false);
+    expect(result.blockers.map((c) => c.id)).toEqual(["save-error"]);
+    expect(result.warnings.map((c) => c.id)).toEqual(["duplicate-counts", "empty-calibrated-sheets"]);
+    expect(result.checks.filter((c) => c.severity === "blocker")).toEqual(result.blockers);
+    expect(result.checks.filter((c) => c.severity === "warning")).toEqual(result.warnings);
+  });
+
+  it("leaves the pristine fixture warning-free: its counts are 14 units apart, not within 3 in", () => {
+    // Fixture receptacles are 10 units apart on x and y: sqrt(100 + 100) = 14.14 units
+    // x 0.1 ft/unit = 1.41 ft = 17 in, well outside the 3 in rule.
+    const result = bidPreflight(createReadyInput());
+    expect(result.checks).toEqual([]);
+  });
 });
 
 describe("bidPreflight - Valid Commercial Edge Cases", () => {

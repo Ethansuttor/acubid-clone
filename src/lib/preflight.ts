@@ -1,4 +1,5 @@
 import type { EstimateIssue, EstimateLine, EstimateSummary } from "./estimate";
+import { takeoffQaChecks } from "./takeoffQa";
 import type { DirectCost, Layer, Project, Sheet, Takeoff } from "./types";
 
 export type PreflightSeverity = "blocker" | "warning";
@@ -291,6 +292,16 @@ export function bidPreflight(input: BidPreflightInput): BidPreflight {
     "Overhead or profit is zero",
     "Confirm the commercial strategy before issuing the bid."
   );
+
+  // Takeoff quality (src/lib/takeoffQa.ts). Warnings only: ganged devices and an
+  // intentionally empty sheet are legitimate, so these must never stop a bid.
+  for (const qa of takeoffQaChecks({
+    sheets: input.sheets,
+    layers: input.layers,
+    takeoffs: input.takeoffs,
+  })) {
+    add(true, qa.id, "warning", qa.title, qa.detail);
+  }
 
   const blockers = checks.filter((check) => check.severity === "blocker");
   const warnings = checks.filter((check) => check.severity === "warning");
