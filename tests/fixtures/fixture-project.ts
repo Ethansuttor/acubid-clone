@@ -176,5 +176,10 @@ export const summaryInputs = {
   wastePct: 0,
   taxPct: 0,
   laborFactorPct: 0,
+  laborBurdenPct: 0,
+  smallToolsPct: 0,
+  contingencyPct: 0,
+  escalationPct: 0,
+  bondPct: 0,
   directCosts: [] as DirectCost[],
 };

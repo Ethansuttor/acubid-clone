@@ -1,0 +1,18 @@
+{
+  "sheet": "E-102",
+  "symbol": "troffer",
+  "scale": 1.5,
+  "strategy": "ncc-verify",
+  "model": "claude-sonnet-4-6",
+  "minScore": 0.5,
+  "groundTruthCount": 50,
+  "detectedRawCount": 89,
+  "dedupedCount": 89,
+  "truePositives": 50,
+  "falsePositives": 39,
+  "falseNegatives": 0,
+  "precision": 0.5617977528089888,
+  "recall": 1,
+  "f1": 0.7194244604316548,
+  "totalTimeMs": 14943
+}

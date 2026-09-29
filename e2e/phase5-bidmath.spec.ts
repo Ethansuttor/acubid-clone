@@ -95,28 +95,28 @@ test("bid math: typical multiplier, waste, tax, labor factor, direct costs", asy
   await page.click("button.tab >> text=summary");
 
   await page.click('button:has-text("+ Cost")');
-  const row1 = page.locator("table tbody tr").first();
+  const row1 = page.getByTestId("direct-cost-row").first();
   await row1.locator('input[placeholder^="e.g."]').fill("Switchgear quote");
   await row1.locator("input.input-num").fill("5000");
   await row1.locator("input.input-num").blur();
 
   await page.click('button:has-text("+ Cost")');
-  const row2 = page.locator("table tbody tr").nth(1);
+  const row2 = page.getByTestId("direct-cost-row").nth(1);
   await row2.locator('input[placeholder^="e.g."]').fill("Permit");
   await row2.locator("input.input-num").fill("500");
   await row2.locator("input.input-num").blur();
-  await row2.locator('input[type="checkbox"]').uncheck(); // carried at cost
+  await row2.getByTestId("direct-cost-ohp").uncheck(); // carried at cost
   await expect(row2.getByText("at cost")).toBeVisible();
 
   await expect(page.getByTestId("bid-price")).toHaveText("$6,673.16");
 
   // Proof the at-cost item is not marked up: switching it on raises the bid by
   // exactly 500 x 1.10 x 1.10 - 500 = 105.00  ->  $6,778.16
-  await row2.locator('input[type="checkbox"]').check();
+  await row2.getByTestId("direct-cost-ohp").check();
   await expect(page.getByTestId("bid-price")).toHaveText("$6,778.16");
 
   // Everything survives a reload
-  await row2.locator('input[type="checkbox"]').uncheck();
+  await row2.getByTestId("direct-cost-ohp").uncheck();
   await page.waitForFunction(() => {
     const w = window as unknown as { __ws?: { getState(): { pendingWrites: number } } };
     return w.__ws?.getState().pendingWrites === 0;

@@ -37,6 +37,9 @@ export default function LayersPanel() {
       assembly_id: null,
       rise_drop_ft: 0,
       typical_multiplier: 1,
+      area: "",
+      system: "",
+      phase: "",
       sort_order: ws.layers.length,
     };
     ws.addLayer(layer);
@@ -60,6 +63,7 @@ export default function LayersPanel() {
             autoFocus
             className="input mb-2"
             placeholder="Layer name (e.g. Duplex receptacles)"
+            aria-label="New layer name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addLayer()}
@@ -146,10 +150,16 @@ export default function LayersPanel() {
 function LayerEditor({ layer }: { layer: Layer }) {
   const ws = useWorkspace();
   const link = layer.item_id ? `i:${layer.item_id}` : layer.assembly_id ? `a:${layer.assembly_id}` : "";
+  const dimensions = {
+    area: uniqueValues(ws.layers.map((item) => item.area ?? "")),
+    system: uniqueValues(ws.layers.map((item) => item.system ?? "")),
+    phase: uniqueValues(ws.layers.map((item) => item.phase ?? "")),
+  };
   return (
     <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
       <select
         className="input text-xs"
+        aria-label={`Link layer ${layer.name} to item or assembly`}
         value={link}
         onChange={(e) => {
           const v = e.target.value;
@@ -177,6 +187,24 @@ function LayerEditor({ layer }: { layer: Layer }) {
           ))}
         </optgroup>
       </select>
+      <div className="grid grid-cols-3 gap-1">
+        {(["area", "system", "phase"] as const).map((dimension) => (
+          <label key={dimension} className="text-[11px] capitalize text-[var(--color-fg-dim)]">
+            {dimension}
+            <input
+              className="input mt-0.5 !px-1.5 !py-1 text-[11px] normal-case tracking-normal"
+              list={`layer-${dimension}-values`}
+              value={layer[dimension] ?? ""}
+              placeholder="Unassigned"
+              aria-label={`${dimension} for layer ${layer.name}`}
+              onChange={(event) => ws.updateLayer(layer.id, { [dimension]: event.target.value })}
+            />
+            <datalist id={`layer-${dimension}-values`}>
+              {dimensions[dimension].map((value) => <option key={value} value={value} />)}
+            </datalist>
+          </label>
+        ))}
+      </div>
       <div className="flex items-center gap-2">
         <label
           className="flex items-center gap-1 text-[10.5px] text-[var(--color-fg-dim)]"
@@ -189,6 +217,7 @@ function LayerEditor({ layer }: { layer: Layer }) {
             type="number"
             min={1}
             step={1}
+            aria-label={`Typical multiplier for layer ${layer.name}`}
             value={layer.typical_multiplier ?? 1}
             onChange={(e) =>
               ws.updateLayer(layer.id, {
@@ -206,6 +235,7 @@ function LayerEditor({ layer }: { layer: Layer }) {
               type="number"
               min={0}
               step={0.5}
+              aria-label={`Rise or drop length for layer ${layer.name}`}
               value={layer.rise_drop_ft}
               onChange={(e) => ws.updateLayer(layer.id, { rise_drop_ft: Number(e.target.value) || 0 })}
             />
@@ -217,9 +247,11 @@ function LayerEditor({ layer }: { layer: Layer }) {
           value={layer.color}
           onChange={(e) => ws.updateLayer(layer.id, { color: e.target.value })}
           title="Layer color"
+          aria-label={`Color for layer ${layer.name}`}
         />
         <button
           className="btn btn-danger !px-2 !py-0.5 text-[10.5px]"
+          aria-label={`Delete layer ${layer.name}`}
           onClick={() => {
             if (confirm(`Delete layer "${layer.name}" and its takeoff objects?`)) {
               ws.deleteLayer(layer.id);
@@ -230,5 +262,11 @@ function LayerEditor({ layer }: { layer: Layer }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function uniqueValues(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b)
   );
 }

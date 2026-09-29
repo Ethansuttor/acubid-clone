@@ -1,0 +1,18 @@
+{
+  "sheet": "E-102",
+  "symbol": "switch",
+  "scale": 4,
+  "strategy": "ncc-verify",
+  "model": "claude-sonnet-4-6",
+  "minScore": 0.5,
+  "groundTruthCount": 9,
+  "detectedRawCount": 111,
+  "dedupedCount": 111,
+  "truePositives": 9,
+  "falsePositives": 102,
+  "falseNegatives": 0,
+  "precision": 0.08108108108108109,
+  "recall": 1,
+  "f1": 0.15,
+  "totalTimeMs": 42582
+}

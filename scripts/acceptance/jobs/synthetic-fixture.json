@@ -1,0 +1,32 @@
+{
+  "jobAlias": "synthetic-fixture",
+  "provenance": "synthetic",
+  "note": "Repository fixture, not a customer estimate. Every figure below is hand-calculated in tests/fixtures/fixture-project.ts. A real job uses this same file shape with the estimator's own values, kept outside the repository.",
+  "expectationAuthor": "repository fixture header",
+  "expectationDate": "2026-09-07",
+  "sourceHashes": {},
+  "catalogSource": "tests/fixtures/fixture-project.ts",
+  "calibrationReferences": ["200 PDF units = 20 ft on the single fixture sheet"],
+  "commercialPolicy": "$95/hr, 12% overhead, 10% profit; no waste, tax, burden, escalation, contingency, bond, or direct costs",
+  "measurementTolerances": {
+    "measuredFraction": 0.0,
+    "currency": 0.005,
+    "laborHours": 0.0005
+  },
+  "knownUnsupportedScope": [],
+  "expectedTotals": {
+    "materialBase": 566.16,
+    "laborHoursBase": 13.528,
+    "bidPrice": 2280.82624
+  },
+  "expectedLines": [
+    { "code": "DPLX-15", "unit": "EA", "kind": "counted", "quantity": 8, "materialCost": 22.8, "laborHours": 1.6 },
+    { "code": "PLT-1G", "unit": "EA", "kind": "counted", "quantity": 8, "materialCost": 4.4, "laborHours": 0.4 },
+    { "code": "BOX-4S", "unit": "EA", "kind": "counted", "quantity": 8, "materialCost": 24.8, "laborHours": 2.0 },
+    { "code": "MR-1G", "unit": "EA", "kind": "counted", "quantity": 8, "materialCost": 14.8, "laborHours": 0.48 },
+    { "code": "EMT-050", "unit": "FT", "kind": "measured", "quantity": 48, "materialCost": 32.64, "laborHours": 1.536 },
+    { "code": "EMT-075", "unit": "FT", "kind": "measured", "quantity": 60, "materialCost": 61.2, "laborHours": 2.4 },
+    { "code": "W-12", "unit": "FT", "kind": "measured", "quantity": 264, "materialCost": 47.52, "laborHours": 2.112 },
+    { "code": "LED-2X4", "unit": "EA", "kind": "counted", "quantity": 4, "materialCost": 358.0, "laborHours": 3.0 }
+  ]
+}

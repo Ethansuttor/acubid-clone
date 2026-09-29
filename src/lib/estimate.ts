@@ -90,25 +90,54 @@ export interface EstimateSummaryInput {
   laborFactorPct: number;
   overheadPct: number;
   profitPct: number;
+  /** Labor burden (payroll tax, insurance, fringe), % of bare labor cost. */
+  laborBurdenPct: number;
+  /** Small tools & consumables, % of bare labor cost. Carried in prime. */
+  smallToolsPct: number;
+  /** Contingency, % of prime cost. Overhead and profit apply to it. */
+  contingencyPct: number;
+  /** Material price escalation, % of material after waste. Taxed. */
+  escalationPct: number;
+  /** Bond premium, % of the FINAL bid price (standard circular calc). */
+  bondPct: number;
   directCosts: DirectCost[];
 }
 
 export interface EstimateSummary extends EstimateSummaryInput {
   wasteAmount: number;
   materialAfterWaste: number;
+  /** Escalation on material after waste — you pay tax on the escalated price. */
+  escalationAmount: number;
+  materialAfterEscalation: number;
   salesTax: number;
-  /** Material carried into the bid: base + waste + tax. */
+  /** Material carried into the bid: base + waste + escalation + tax. */
   materialTotal: number;
   laborFactorHours: number;
   /** Labor hours carried into the bid: base + factor adjustment. */
   laborHoursTotal: number;
+  /** Hours x rate, before burden. */
+  laborBareCost: number;
+  laborBurden: number;
+  /** Labor carried into the bid: bare + burden. */
   laborCost: number;
+  /** Small tools & consumables: % of bare labor cost. */
+  smallTools: number;
   directCostsWithOhp: number;
   directCostsAtCost: number;
+  /** Sales tax on taxable direct costs, split by their O&P treatment. */
+  directCostTaxWithOhp: number;
+  directCostTaxAtCost: number;
+  directCostTax: number;
   primeCost: number;
+  /** Contingency on prime; flows through overhead and profit. */
+  contingency: number;
   overhead: number;
   subtotal: number;
   profit: number;
+  /** Everything before the bond premium. */
+  preBondTotal: number;
+  /** Bond premium = bondPct% of the final bid price (circular). */
+  bondAmount: number;
   bidPrice: number;
 }
 
@@ -334,15 +363,29 @@ export function estimateTotals(lines: EstimateLine[]): {
 /**
  * Bid summary:
  *   waste        = materialBase * wastePct%
- *   salesTax     = (materialBase + waste) * taxPct%
- *   materialTotal= materialBase + waste + salesTax
+ *   escalation   = (materialBase + waste) * escalationPct%
+ *   salesTax     = (materialBase + waste + escalation) * taxPct%
+ *                  (you pay tax on the escalated purchase price)
+ *   materialTotal= materialBase + waste + escalation + salesTax
  *   laborHours   = laborHoursBase * (1 + laborFactorPct%)
- *   laborCost    = laborHours * laborRate
- *   primeCost    = materialTotal + laborCost + direct costs marked O&P-applies
- *   overhead     = primeCost * overheadPct%
- *   subtotal     = primeCost + overhead
+ *   laborBare    = laborHours * laborRate
+ *   laborBurden  = laborBare * laborBurdenPct%
+ *   laborCost    = laborBare + laborBurden
+ *   smallTools   = laborBare * smallToolsPct%
+ *   dcTax        = taxPct% on each direct cost flagged taxable, following
+ *                  that cost's own O&P treatment
+ *   primeCost    = materialTotal + laborCost + smallTools
+ *                  + direct costs marked O&P-applies + their tax
+ *   contingency  = primeCost * contingencyPct%   (gets overhead AND profit)
+ *   overhead     = (primeCost + contingency) * overheadPct%
+ *   subtotal     = primeCost + contingency + overhead
  *   profit       = subtotal * profitPct%
- *   bidPrice     = subtotal + profit + direct costs carried at cost
+ *   preBond      = subtotal + profit + at-cost direct costs + their tax
+ *   bidPrice     = preBond / (1 - bondPct%)     (bond is a % of the FINAL
+ *                  price, the standard circular calculation)
+ *   bondAmount   = bidPrice - preBond
+ * bondPct >= 100 makes the bid price non-finite; preflight blocks it rather
+ * than this function guessing a cap.
  */
 export function summarize(raw: EstimateSummaryInput): EstimateSummary {
   // A project row written before the bid-math columns existed yields undefined
@@ -358,45 +401,92 @@ export function summarize(raw: EstimateSummaryInput): EstimateSummary {
     laborFactorPct: n(raw.laborFactorPct),
     overheadPct: n(raw.overheadPct),
     profitPct: n(raw.profitPct),
+    laborBurdenPct: n(raw.laborBurdenPct),
+    smallToolsPct: n(raw.smallToolsPct),
+    contingencyPct: n(raw.contingencyPct),
+    escalationPct: n(raw.escalationPct),
+    bondPct: n(raw.bondPct),
   };
   const wasteAmount = input.materialBase * (input.wastePct / 100);
   const materialAfterWaste = input.materialBase + wasteAmount;
-  const salesTax = materialAfterWaste * (input.taxPct / 100);
-  const materialTotal = materialAfterWaste + salesTax;
+  const escalationAmount = materialAfterWaste * (input.escalationPct / 100);
+  const materialAfterEscalation = materialAfterWaste + escalationAmount;
+  const salesTax = materialAfterEscalation * (input.taxPct / 100);
+  const materialTotal = materialAfterEscalation + salesTax;
 
   const laborFactorHours = input.laborHoursBase * (input.laborFactorPct / 100);
   const laborHoursTotal = input.laborHoursBase + laborFactorHours;
-  const laborCost = laborHoursTotal * input.laborRate;
+  const laborBareCost = laborHoursTotal * input.laborRate;
+  const laborBurden = laborBareCost * (input.laborBurdenPct / 100);
+  const laborCost = laborBareCost + laborBurden;
+  const smallTools = laborBareCost * (input.smallToolsPct / 100);
 
   let directCostsWithOhp = 0;
   let directCostsAtCost = 0;
+  let directCostTaxWithOhp = 0;
+  let directCostTaxAtCost = 0;
   for (const dc of input.directCosts) {
     const amount = Number(dc.amount) || 0;
-    if (dc.ohp_applies) directCostsWithOhp += amount;
-    else directCostsAtCost += amount;
+    // Rows written before the flag existed read undefined => not taxable.
+    const tax = dc.taxable === true ? amount * (input.taxPct / 100) : 0;
+    if (dc.ohp_applies) {
+      directCostsWithOhp += amount;
+      directCostTaxWithOhp += tax;
+    } else {
+      directCostsAtCost += amount;
+      directCostTaxAtCost += tax;
+    }
   }
+  const directCostTax = directCostTaxWithOhp + directCostTaxAtCost;
 
-  const primeCost = materialTotal + laborCost + directCostsWithOhp;
-  const overhead = primeCost * (input.overheadPct / 100);
-  const subtotal = primeCost + overhead;
+  const primeCost =
+    materialTotal + laborCost + smallTools + directCostsWithOhp + directCostTaxWithOhp;
+  const contingency = primeCost * (input.contingencyPct / 100);
+  const overhead = (primeCost + contingency) * (input.overheadPct / 100);
+  const subtotal = primeCost + contingency + overhead;
   const profit = subtotal * (input.profitPct / 100);
-  const bidPrice = subtotal + profit + directCostsAtCost;
+  const preBondTotal = subtotal + profit + directCostsAtCost + directCostTaxAtCost;
+
+  // Bond premium is charged on the final contract value, bond included, so
+  // the closed form divides rather than multiplies. bondPct >= 100 has no
+  // finite solution: report Infinity and let preflight refuse the bid.
+  const bondDenominator = 1 - input.bondPct / 100;
+  const bidPrice =
+    input.bondPct === 0
+      ? preBondTotal
+      : bondDenominator > 0
+      ? preBondTotal / bondDenominator
+      : preBondTotal > 0
+      ? Number.POSITIVE_INFINITY
+      : 0;
+  const bondAmount = bidPrice - preBondTotal;
 
   return {
     ...input,
     wasteAmount,
     materialAfterWaste,
+    escalationAmount,
+    materialAfterEscalation,
     salesTax,
     materialTotal,
     laborFactorHours,
     laborHoursTotal,
+    laborBareCost,
+    laborBurden,
     laborCost,
+    smallTools,
     directCostsWithOhp,
     directCostsAtCost,
+    directCostTaxWithOhp,
+    directCostTaxAtCost,
+    directCostTax,
     primeCost,
+    contingency,
     overhead,
     subtotal,
     profit,
+    preBondTotal,
+    bondAmount,
     bidPrice,
   };
 }
@@ -430,4 +520,194 @@ export function itemUsage(
 /** Layers that would lose their pricing if this assembly were deleted. */
 export function assemblyUsage(assemblyId: string, layers: Layer[]): Layer[] {
   return layers.filter((l) => l.assembly_id === assemblyId);
+}
+
+// ---------------------------------------------------------------------------
+// Bid breakdown by area / system / phase (roadmap B-302)
+// ---------------------------------------------------------------------------
+
+/** The layer tags a bid can be broken down by. */
+export type BreakdownDimension = "area" | "system" | "phase";
+
+/** Shown for layers that carry quantity but were never tagged. */
+export const UNASSIGNED_LABEL = "Unassigned";
+/** Direct costs are project-level, not layer-level, so they form their own group. */
+export const DIRECT_COST_LABEL = "Direct costs";
+
+export interface BreakdownGroup {
+  /** Raw tag value; "" for untagged layers, null for the direct-cost group. */
+  key: string | null;
+  label: string;
+  kind: "takeoff" | "direct-costs";
+  /** Extended material and labor from takeoff, before markups. */
+  materialBase: number;
+  laborHoursBase: number;
+  /** This group's share of each bid component, at full precision. */
+  materialTotal: number;
+  laborHoursTotal: number;
+  laborCost: number;
+  smallTools: number;
+  primeCost: number;
+  contingency: number;
+  overhead: number;
+  profit: number;
+  bondAmount: number;
+  /** This group's share of the final bid price. Groups sum to summary.bidPrice. */
+  bidPrice: number;
+  /** Share of the bid price, 0-100. Zero when the bid price is zero. */
+  pctOfBid: number;
+  /** Estimate lines rolled into this group (0 for the direct-cost group). */
+  lineCount: number;
+  /** Layers rolled into this group (0 for the direct-cost group). */
+  layerCount: number;
+}
+
+export interface BidBreakdown {
+  dimension: BreakdownDimension;
+  groups: BreakdownGroup[];
+  /** Whole-bid price from summarize() — the single source of truth. */
+  bidPrice: number;
+  /** Sum of the group shares. */
+  allocated: number;
+  /** bidPrice - allocated. Non-zero means the parts do not describe the whole. */
+  reconciliationError: number;
+  /** False if the parts fail to sum to the whole; callers must not present it. */
+  reconciles: boolean;
+}
+
+/**
+ * Break a bid down by a layer tag, reporting each group's share of the *final
+ * bid price* rather than only its raw material and labor.
+ *
+ * This is exact, not pro-rata. Every step of `summarize()` is a percentage of
+ * material base, labor base, or a direct cost, with no additive constant, so
+ * the chain is linear: running it on one group's base yields precisely that
+ * group's share of waste, tax, burden, small tools, contingency, overhead,
+ * profit and bond. Re-using `summarize()` itself — rather than reimplementing
+ * the allocation — is what keeps a breakdown from drifting away from the bid
+ * when the bid math changes. A pro-rata split would look identical today and
+ * silently diverge the first time a non-linear term is added.
+ *
+ * Two rules protect the estimator:
+ *  - A layer with no tag is reported under "Unassigned". It is never dropped
+ *    and never spread across the tagged groups (invariant 1).
+ *  - Direct costs are not layer-tagged, so they are their own group rather
+ *    than being attributed to a system they may not belong to.
+ *
+ * `reconciles` is the guard: if the group shares fail to sum to the bid price
+ * — which happens when `input` was not derived from these `lines` — callers
+ * must show the error rather than a breakdown that quietly disagrees with the
+ * total on the same screen.
+ */
+export function bidBreakdown(
+  lines: EstimateLine[],
+  layers: Layer[],
+  input: EstimateSummaryInput,
+  dimension: BreakdownDimension
+): BidBreakdown {
+  const layerById = new Map(layers.map((l) => [l.id, l]));
+  const whole = summarize(input);
+
+  interface Bucket {
+    key: string;
+    materialBase: number;
+    laborHoursBase: number;
+    lineCount: number;
+    layerIds: Set<string>;
+  }
+  const buckets = new Map<string, Bucket>();
+  for (const line of lines) {
+    const raw = layerById.get(line.layerId)?.[dimension];
+    const key = typeof raw === "string" ? raw.trim() : "";
+    const bucket = buckets.get(key) ?? {
+      key,
+      materialBase: 0,
+      laborHoursBase: 0,
+      lineCount: 0,
+      layerIds: new Set<string>(),
+    };
+    bucket.materialBase += line.materialCost;
+    bucket.laborHoursBase += line.laborHours;
+    bucket.lineCount += 1;
+    bucket.layerIds.add(line.layerId);
+    buckets.set(key, bucket);
+  }
+
+  // Percentages only: each group's own base and, for the direct-cost group,
+  // the real direct costs. Splitting this way is what makes the parts sum.
+  const share = (
+    materialBase: number,
+    laborHoursBase: number,
+    directCosts: DirectCost[]
+  ): EstimateSummary => summarize({ ...input, materialBase, laborHoursBase, directCosts });
+
+  const groups: BreakdownGroup[] = [];
+  const pct = (value: number) =>
+    Number.isFinite(whole.bidPrice) && whole.bidPrice !== 0 ? (value / whole.bidPrice) * 100 : 0;
+
+  const push = (
+    key: string | null,
+    label: string,
+    kind: BreakdownGroup["kind"],
+    s: EstimateSummary,
+    lineCount: number,
+    layerCount: number
+  ) => {
+    groups.push({
+      key,
+      label,
+      kind,
+      materialBase: s.materialBase,
+      laborHoursBase: s.laborHoursBase,
+      materialTotal: s.materialTotal,
+      laborHoursTotal: s.laborHoursTotal,
+      laborCost: s.laborCost,
+      smallTools: s.smallTools,
+      primeCost: s.primeCost,
+      contingency: s.contingency,
+      overhead: s.overhead,
+      profit: s.profit,
+      bondAmount: s.bondAmount,
+      bidPrice: s.bidPrice,
+      pctOfBid: pct(s.bidPrice),
+      lineCount,
+      layerCount,
+    });
+  };
+
+  for (const bucket of buckets.values()) {
+    push(
+      bucket.key,
+      bucket.key === "" ? UNASSIGNED_LABEL : bucket.key,
+      "takeoff",
+      share(bucket.materialBase, bucket.laborHoursBase, []),
+      bucket.lineCount,
+      bucket.layerIds.size
+    );
+  }
+  if (input.directCosts.length > 0) {
+    push(null, DIRECT_COST_LABEL, "direct-costs", share(0, 0, input.directCosts), 0, 0);
+  }
+
+  // Tagged groups by value descending, then Unassigned, then direct costs, so
+  // the two groups an estimator must consciously account for read last.
+  const rank = (g: BreakdownGroup) => (g.kind === "direct-costs" ? 2 : g.key === "" ? 1 : 0);
+  groups.sort((a, b) => rank(a) - rank(b) || b.bidPrice - a.bidPrice || a.label.localeCompare(b.label));
+
+  const allocated = groups.reduce((sum, g) => sum + g.bidPrice, 0);
+  const reconciliationError = whole.bidPrice - allocated;
+  // Relative tolerance: the shares are summed in a different order from the
+  // whole, so float rounding of a large bid is expected and harmless.
+  const tolerance = Math.max(1e-6, Math.abs(whole.bidPrice) * 1e-9);
+  return {
+    dimension,
+    groups,
+    bidPrice: whole.bidPrice,
+    allocated,
+    reconciliationError,
+    reconciles:
+      Number.isFinite(whole.bidPrice) &&
+      Number.isFinite(allocated) &&
+      Math.abs(reconciliationError) <= tolerance,
+  };
 }

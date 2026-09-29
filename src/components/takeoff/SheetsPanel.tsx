@@ -1,6 +1,6 @@
 "use client";
 
-// Plan set upload + sheet list. Uploading a PDF stores it in Supabase
+// Plan set upload + sheet list. Uploading a PDF stores it in local
 // storage, creates document + sheet rows, and primes the PDF cache.
 
 import { useRef, useState } from "react";
@@ -52,9 +52,17 @@ export default function SheetsPanel() {
       }));
       const db = supabase();
       const { error: docErr } = await db.from("documents").insert(doc);
-      if (docErr) throw new Error(docErr.message);
+      if (docErr) {
+        await db.storage.from("plans").remove([path]);
+        throw new Error(docErr.message);
+      }
       const { error: shErr } = await db.from("sheets").insert(sheets);
-      if (shErr) throw new Error(shErr.message);
+      if (shErr) {
+        // Deleting the document cascades any partially inserted sheets and
+        // removes the uploaded local plan bytes.
+        await db.from("documents").delete().eq("id", docId);
+        throw new Error(shErr.message);
+      }
       primeDocumentCache(docId, bytes.slice(0));
       ws.addDocumentWithSheets(doc, sheets);
       ws.setActiveSheet(sheets[0].id);

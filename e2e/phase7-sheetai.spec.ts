@@ -51,7 +51,7 @@ test("AI sheet analysis proposes names and scales for confirmation", async ({ pa
   });
   await expect(page.getByText("UNCALIBRATED", { exact: false })).toBeVisible();
 
-  await page.click('button:has-text("✨ Read")');
+  await page.getByRole("button", { name: "Read title blocks and scales" }).click();
   await expect(page.getByTestId("sheet-proposal")).toHaveCount(2, { timeout: 60_000 });
 
   // The not-to-scale sheet yields a name but no calibration

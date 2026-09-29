@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { HardDrive, Zap } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { LOCAL_PASSWORD, LOCAL_USERNAME } from "@/lib/local-config";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(LOCAL_USERNAME);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -15,41 +16,64 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabase().auth.signInWithPassword({ email, password });
+    const { error: signInError } = await supabase().auth.signInWithPassword({
+      email: username.trim(),
+      password: LOCAL_PASSWORD,
+    });
     setBusy(false);
-    if (error) setError(error.message);
-    else router.push("/");
+    if (signInError) setError(signInError.message);
+    else router.replace("/");
   }
 
   return (
-    <div className="blueprint flex h-full items-center justify-center">
-      <form onSubmit={signIn} className="panel w-[360px] p-8">
-        <div className="mb-1 font-mono text-2xl font-bold tracking-widest text-[var(--color-volt)]">
-          VOLTLINE
+    <main className="login-page">
+      <section className="login-card" aria-labelledby="login-title">
+        <div className="brand-lockup">
+          <span className="brand-mark" aria-hidden="true">
+            <Zap size={18} strokeWidth={2.5} />
+          </span>
+          <span className="brand-name">Voltline</span>
         </div>
-        <div className="titlebar mb-8">Estimating &amp; Takeoff</div>
-        <label className="titlebar mb-1 block">Email</label>
-        <input
-          className="input mb-4"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoFocus
-          required
-        />
-        <label className="titlebar mb-1 block">Password</label>
-        <input
-          className="input mb-6"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        {error && <div className="mb-4 text-xs text-[var(--color-danger)]">{error}</div>}
-        <button className="btn btn-volt w-full justify-center" disabled={busy} type="submit">
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-    </div>
+
+        <h1 id="login-title" className="mt-8 text-lg font-semibold tracking-[-0.02em]">
+          Open your workspace
+        </h1>
+
+        <form onSubmit={signIn} className="mt-5">
+          <label className="field-label" htmlFor="username">
+            Username
+          </label>
+          <input
+            id="username"
+            name="username"
+            className="input h-11"
+            type="text"
+            inputMode="numeric"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            aria-describedby="login-help"
+          />
+          <div id="login-help" className="mt-2 text-xs text-[var(--color-fg-dim)]">
+            No password in local mode.
+          </div>
+
+          {error && (
+            <div className="form-error mt-4" role="alert">
+              {error}
+            </div>
+          )}
+
+          <button className="btn btn-volt mt-5 h-10 w-full justify-center" disabled={busy} type="submit">
+            {busy ? "Opening workspace…" : "Open workspace"}
+          </button>
+        </form>
+
+        <div className="mt-7 flex items-center gap-2 border-t border-[var(--color-line)] pt-4 text-xs text-[var(--color-fg-faint)]">
+          <HardDrive size={13} />
+          Estimates are stored on this device.
+        </div>
+      </section>
+    </main>
   );
 }

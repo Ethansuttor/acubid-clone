@@ -3,7 +3,6 @@
 // each one before it changes a sheet.
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { ClaudeSheetAnalyzer } from "@/lib/sheetai/claude";
 import { parseDrawingScale } from "@/lib/sheetai/scale";
 import type { SheetAnalyzer, SheetInfo } from "@/lib/sheetai/types";
@@ -28,22 +27,11 @@ export interface SheetProposal extends SheetInfo {
 const MAX_BODY_BYTES = 48 * 1024 * 1024;
 
 async function authorize(req: NextRequest): Promise<boolean> {
-  // Local mode is an offline dev/test configuration. Guarding on NODE_ENV too
-  // means a stray env var in a deployment cannot disable auth on this route.
-  if (
-    process.env.NODE_ENV !== "production" &&
-    process.env.NEXT_PUBLIC_LOCAL_MODE === "1"
-  ) {
-    return true;
-  }
+  // The temporary local token is only valid on the development server. A
+  // production deployment must fail closed until real authentication returns.
+  if (process.env.NODE_ENV === "production") return false;
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token) return false;
-  const db = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const { data, error } = await db.auth.getUser(token);
-  return !error && !!data.user;
+  return token === "local";
 }
 
 export async function POST(req: NextRequest) {
