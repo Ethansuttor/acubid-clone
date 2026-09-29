@@ -40,6 +40,7 @@ planned, not currently available. Document them after implementing them.
 | September 29, integration at `a84256e` | npx playwright test | 19 of 19 passed in 2.5 min; Linux Chromium /opt/pw-browsers, port 3000 |
 | September 29, integration at `a84256e` | npm run desktop:build; test:desktop | Staged 314 MB payload; 3 of 3 Electron launch tests passed as a non-root user under Xvfb with the OS sandbox active. Linux only; most D2 lifecycle cases not run |
 | September 29, integration at `a84256e` | npm run eval:manifests | Both manifests up to date |
+| September 29, integration at `a84256e` | npm run eval:detection | Exit 0 in 6 min 46 s; E2E plan 9/9 and sample plan 90/90 expected symbols, 0 false positives, 0 labeled-negative hits, 0 API calls. Synthetic fixtures only; G6 unverified |
 | September 29, under concurrent agent load | tests/autocount-ncc.test.ts 10 s smoke ceiling | Fails at 11–18 s when the suite shares the CPU with other jobs; passes alone and on a quiet machine. A wall-clock assertion in the unit suite |
 | September 29, worker runs | Track handoffs | See handoffs/S1-S2.md, D1-D2.md, V1.md, QA-diff.md for per-track commands and results |
 | Current review | Installed desktop, Windows, physical power loss, real-job acceptance, live provider accuracy, real-plan detection | Not verified |
